@@ -5,7 +5,11 @@ This file is for the versions of the different software we have been using thoug
 
 
 
-Central unit code.: \\
-Peripheral A unit code.: \\
-Peripheral B unit code.: \\
-Gui code.:  \\
+Central unit code: 
+
+Peripheral A unit code.: 
+
+Peripheral B unit code.: 
+
+Gui code.:  
+
