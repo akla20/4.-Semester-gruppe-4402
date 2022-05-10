@@ -5,6 +5,7 @@ This file is for the versions of the different software we have been using thoug
 
 
 Versions of the software: 
+
 board manager: esp32 by espressif version 1.0.6 
 
 Central unit code: Arduino 1.8.19 
