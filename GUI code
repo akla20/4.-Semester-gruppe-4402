@@ -1,1 +1,719 @@
+classdef System_GUI < matlab.apps.AppBase
 
+    % Properties that correspond to app components
+    properties (Access = public)
+        UIFigure             matlab.ui.Figure
+        Label_3              matlab.ui.control.Label
+        SecondsLabel         matlab.ui.control.Label
+        MinutesLabel         matlab.ui.control.Label
+        EditField_35         matlab.ui.control.EditField
+        EditField_34         matlab.ui.control.EditField
+        EditField_33         matlab.ui.control.EditField
+        EditField_32         matlab.ui.control.EditField
+        EditField_31         matlab.ui.control.EditField
+        EditField_30         matlab.ui.control.EditField
+        Label_2              matlab.ui.control.Label
+        Label                matlab.ui.control.Label
+        EditField_28         matlab.ui.control.EditField
+        UPLOADButton         matlab.ui.control.Button
+        STOPButton           matlab.ui.control.Button
+        Player20Lamp         matlab.ui.control.Lamp
+        Player20LampLabel    matlab.ui.control.Label
+        EditField_27         matlab.ui.control.EditField
+        Player15Lamp         matlab.ui.control.Lamp
+        Player15LampLabel    matlab.ui.control.Label
+        EditField_25         matlab.ui.control.EditField
+        Player10Lamp         matlab.ui.control.Lamp
+        Player10LampLabel    matlab.ui.control.Label
+        EditField_24         matlab.ui.control.EditField
+        Player19Lamp         matlab.ui.control.Lamp
+        Player19LampLabel    matlab.ui.control.Label
+        EditField_22         matlab.ui.control.EditField
+        Player14Lamp         matlab.ui.control.Lamp
+        Player14LampLabel    matlab.ui.control.Label
+        EditField_21         matlab.ui.control.EditField
+        Player9Lamp          matlab.ui.control.Lamp
+        Player9LampLabel     matlab.ui.control.Label
+        EditField_20         matlab.ui.control.EditField
+        Player18Lamp         matlab.ui.control.Lamp
+        Player18LampLabel    matlab.ui.control.Label
+        EditField_18         matlab.ui.control.EditField
+        Player17Lamp         matlab.ui.control.Lamp
+        Player17LampLabel    matlab.ui.control.Label
+        EditField_17         matlab.ui.control.EditField
+        Player16Lamp         matlab.ui.control.Lamp
+        Player16LampLabel    matlab.ui.control.Label
+        EditField_16         matlab.ui.control.EditField
+        Player13Lamp         matlab.ui.control.Lamp
+        Player13LampLabel    matlab.ui.control.Label
+        EditField_15         matlab.ui.control.EditField
+        Player8Lamp          matlab.ui.control.Lamp
+        Player8LampLabel     matlab.ui.control.Label
+        EditField_14         matlab.ui.control.EditField
+        Player12Lamp         matlab.ui.control.Lamp
+        Player12LampLabel    matlab.ui.control.Label
+        EditField_12         matlab.ui.control.EditField
+        Player7Lamp          matlab.ui.control.Lamp
+        Player7LampLabel     matlab.ui.control.Label
+        EditField_11         matlab.ui.control.EditField
+        Player1Lamp_10       matlab.ui.control.Lamp
+        Player1Lamp_10Label  matlab.ui.control.Label
+        EditField_10         matlab.ui.control.EditField
+        Player5Lamp          matlab.ui.control.Lamp
+        Player5LampLabel     matlab.ui.control.Label
+        EditField_8          matlab.ui.control.EditField
+        Player4Lamp          matlab.ui.control.Lamp
+        Player4LampLabel     matlab.ui.control.Label
+        EditField_7          matlab.ui.control.EditField
+        Player3Lamp          matlab.ui.control.Lamp
+        Player3LampLabel     matlab.ui.control.Label
+        EditField_6          matlab.ui.control.EditField
+        Player2Lamp          matlab.ui.control.Lamp
+        Player2LampLabel     matlab.ui.control.Label
+        EditField_5          matlab.ui.control.EditField
+        Player11Lamp         matlab.ui.control.Lamp
+        Player11LampLabel    matlab.ui.control.Label
+        EditField_3          matlab.ui.control.EditField
+        Player6Lamp          matlab.ui.control.Lamp
+        Player6LampLabel     matlab.ui.control.Label
+        EditField_2          matlab.ui.control.EditField
+        STARTButton          matlab.ui.control.Button
+    end
+
+    
+    properties (Access = private)
+        %Initialise all the needed variables
+        port;
+        i;
+        j;
+        shuttles;
+        elements;
+        shuttle_times;
+        k;
+        P1Warnings;
+        MyTimer;
+        end
+    
+    methods (Access = private)
+        
+        function MyTimerFcn(app,~,~)            
+            % Read the stopwatch timer and update the edit field
+            
+            val = toc;
+            sec = mod(val,60);
+            minutes = uint16(floor(val/60));
+
+            app.EditField_28.Value = sprintf("%.0f",sec);
+            app.EditField_35.Value = sprintf("%.0f",minutes);
+        end 
+        
+        function Readline(app)
+            
+    %Read values of warnings from the serialport (central unit).
+    app.P1Warnings = str2double(readline(app.port));
+     
+    %Switch case to change the color of the lamp depending on the number of
+    %warnings
+            switch app.P1Warnings
+            case 1
+               app.Player1Lamp_10.Color = 'y';
+            case 2
+               app.Player1Lamp_10.Color = 'r'; 
+            otherwise
+               app.Player1Lamp_10.Color = 'g';
+           
+            end
+        end
+
+    end
+    
+
+    % Callbacks that handle component events
+    methods (Access = private)
+
+        % Code that executes after component creation
+        function startupFcn(app)
+            %Initialise connection with comport (Change name of COMport to
+            %match the utilised)
+            app.port = serialport("COM3",115200); 
+
+            % Create timer object
+            app.MyTimer = timer(...
+                'ExecutionMode', 'fixedRate', ...    % Run timer repeatedly
+                'Period', 0.2, ...                     % Period is 1 second
+                'BusyMode', 'queue',...              % Queue timer callbacks when busy
+                'TimerFcn', @app.MyTimerFcn);      % Specify callback function
+            
+            app.EditField_28.Value = sprintf("%.0f",0.00);
+            app.EditField_35.Value = sprintf("%.0f",0.00);
+            app.STOPButton.Enable = false;
+        end
+
+        % Button pushed function: STARTButton
+        function STARTButtonPushed(app, event)
+     
+     %Define number of warnings for player one
+     app.P1Warnings = 0;
+     
+    %Write start command to the serial port to initialise the central unit
+    write(app.port,'s',"uint8");
+
+    %Inorder to syncronize with the Beep, beep, beeeep delay from the Mstack
+    pause(6.681);
+
+    % If timer is not running, start it
+            if strcmp(app.MyTimer.Running, 'off')
+                % Start a stopwatch timer
+                pause(3); %Syncronize with shuttle counter
+                tic
+                % Start MyTimer
+                start(app.MyTimer);
+                % Disable start button and enable stop button
+                app.STOPButton.Enable = true;
+                app.STARTButton.Enable = false;
+            end
+
+ 
+   %Define variables:
+  %number of shuttle repeats per level
+  app.shuttles = [8, 8, 8, 9, 9, 10, 10, 11, 11, 11, 12, 12, 13, 13, 13, 14, 14, 15, 15, 16, 16];
+
+  %shuttle times in hundredth seconds (ex. 8.47 sek)
+  app.shuttle_times = [8.47, 8.00, 7.58, 7.20, 6.86, 6.55, 6.26, 6.00, 5.76, 5.54, 5.33, 5.14, 4.97, 4.80, 4.65, 4.50, 4.36, 4.24, 4.11, 4.00, 3.89];
+
+  %the number of elements in each of the arrays
+  app.elements = 21;
+
+  %variable for levels loop
+  app.i = 1;
+
+  %levels loop
+  while app.i <= app.elements
+
+             
+   %write levels (i)
+    app.EditField_30.Value = num2str(app.i);
+   
+
+   %variable for shuttles loop
+    app.j = 1;
+    app.k = 0;
+
+   %shuttles loop
+    while app.j <= app.shuttles(app.i-app.k)
+    
+
+        %write shuttles (j)
+      app.EditField_31.Value = num2str(app.j);
+
+      pause(app.shuttle_times(app.i));
+
+      %increment shuttle counter
+      app.j = app.j+1;
+ 
+      %Call the Readline function to read the warnings from the comport and
+      %to update the lamp if a player receives a warning
+      Readline(app);
+    
+    end
+    %increment level counter
+    app.i = app.i+1;
+    app.k = 1;
+  end
+           
+            
+            
+            
+        end
+
+        % Button pushed function: STOPButton
+        function STOPButtonPushed(app, event)
+            %Writes the command to stop the central unit
+            write(app.port,'e',"uint8");
+            %Stops the timers and the level/shuttles counter
+            stop(app.MyTimer);
+            app.elements = 0;
+
+      % Disable stop button and enable start button
+            app.STOPButton.Enable = false;
+            app.STARTButton.Enable = true;    
+        end
+
+        % Button pushed function: UPLOADButton
+        function UPLOADButtonPushed(app, event)
+            %Sends the command to upload the obtained data to the SD card.
+            write(app.port,'u',"uint8");
+            
+        end
+
+        % Value changed function: EditField_28
+        function EditField_28ValueChanged(app, event)
+            value = app.EditField_28.Value;
+            
+        end
+
+        % Value changing function: EditField_28
+        function EditField_28ValueChanging(app, event)
+            changingValue = event.Value;
+            
+        end
+
+        % Close request function: UIFigure
+        function UIFigureCloseRequest(app, event)
+            % Stop timer, then delete timer and app
+            stop(app.MyTimer);
+            delete(app.MyTimer);
+            delete(app);
+        end
+    end
+
+    % Component initialization
+    methods (Access = private)
+
+        % Create UIFigure and components
+        function createComponents(app)
+
+            % Create UIFigure and hide until all components are created
+            app.UIFigure = uifigure('Visible', 'off');
+            app.UIFigure.Position = [100 100 636 480];
+            app.UIFigure.Name = 'MATLAB App';
+            app.UIFigure.CloseRequestFcn = createCallbackFcn(app, @UIFigureCloseRequest, true);
+
+            % Create STARTButton
+            app.STARTButton = uibutton(app.UIFigure, 'push');
+            app.STARTButton.ButtonPushedFcn = createCallbackFcn(app, @STARTButtonPushed, true);
+            app.STARTButton.BackgroundColor = [0.651 0.651 0.651];
+            app.STARTButton.FontSize = 30;
+            app.STARTButton.FontWeight = 'bold';
+            app.STARTButton.Position = [111 28 125 53];
+            app.STARTButton.Text = 'START';
+
+            % Create EditField_2
+            app.EditField_2 = uieditfield(app.UIFigure, 'text');
+            app.EditField_2.Position = [10 369 117 47];
+
+            % Create Player6LampLabel
+            app.Player6LampLabel = uilabel(app.UIFigure);
+            app.Player6LampLabel.HorizontalAlignment = 'right';
+            app.Player6LampLabel.FontSize = 18;
+            app.Player6LampLabel.Position = [10 381 71 22];
+            app.Player6LampLabel.Text = 'Player 6';
+
+            % Create Player6Lamp
+            app.Player6Lamp = uilamp(app.UIFigure);
+            app.Player6Lamp.Position = [89 378 27 27];
+
+            % Create EditField_3
+            app.EditField_3 = uieditfield(app.UIFigure, 'text');
+            app.EditField_3.Position = [10 312 117 47];
+
+            % Create Player11LampLabel
+            app.Player11LampLabel = uilabel(app.UIFigure);
+            app.Player11LampLabel.HorizontalAlignment = 'right';
+            app.Player11LampLabel.FontSize = 18;
+            app.Player11LampLabel.Position = [7 324 80 22];
+            app.Player11LampLabel.Text = 'Player 11';
+
+            % Create Player11Lamp
+            app.Player11Lamp = uilamp(app.UIFigure);
+            app.Player11Lamp.Position = [89 321 27 27];
+
+            % Create EditField_5
+            app.EditField_5 = uieditfield(app.UIFigure, 'text');
+            app.EditField_5.Position = [134 422 117 47];
+
+            % Create Player2LampLabel
+            app.Player2LampLabel = uilabel(app.UIFigure);
+            app.Player2LampLabel.HorizontalAlignment = 'right';
+            app.Player2LampLabel.FontSize = 18;
+            app.Player2LampLabel.Position = [134 434 71 22];
+            app.Player2LampLabel.Text = 'Player 2';
+
+            % Create Player2Lamp
+            app.Player2Lamp = uilamp(app.UIFigure);
+            app.Player2Lamp.Position = [213 431 27 27];
+
+            % Create EditField_6
+            app.EditField_6 = uieditfield(app.UIFigure, 'text');
+            app.EditField_6.Position = [258 422 117 47];
+
+            % Create Player3LampLabel
+            app.Player3LampLabel = uilabel(app.UIFigure);
+            app.Player3LampLabel.HorizontalAlignment = 'right';
+            app.Player3LampLabel.FontSize = 18;
+            app.Player3LampLabel.Position = [258 434 71 22];
+            app.Player3LampLabel.Text = 'Player 3';
+
+            % Create Player3Lamp
+            app.Player3Lamp = uilamp(app.UIFigure);
+            app.Player3Lamp.Position = [337 431 27 27];
+
+            % Create EditField_7
+            app.EditField_7 = uieditfield(app.UIFigure, 'text');
+            app.EditField_7.Position = [383 422 117 47];
+
+            % Create Player4LampLabel
+            app.Player4LampLabel = uilabel(app.UIFigure);
+            app.Player4LampLabel.HorizontalAlignment = 'right';
+            app.Player4LampLabel.FontSize = 18;
+            app.Player4LampLabel.Position = [383 434 71 22];
+            app.Player4LampLabel.Text = 'Player 4';
+
+            % Create Player4Lamp
+            app.Player4Lamp = uilamp(app.UIFigure);
+            app.Player4Lamp.Position = [462 431 27 27];
+
+            % Create EditField_8
+            app.EditField_8 = uieditfield(app.UIFigure, 'text');
+            app.EditField_8.Position = [508 421 117 47];
+
+            % Create Player5LampLabel
+            app.Player5LampLabel = uilabel(app.UIFigure);
+            app.Player5LampLabel.HorizontalAlignment = 'right';
+            app.Player5LampLabel.FontSize = 18;
+            app.Player5LampLabel.Position = [508 433 71 22];
+            app.Player5LampLabel.Text = 'Player 5';
+
+            % Create Player5Lamp
+            app.Player5Lamp = uilamp(app.UIFigure);
+            app.Player5Lamp.Position = [587 430 27 27];
+
+            % Create EditField_10
+            app.EditField_10 = uieditfield(app.UIFigure, 'text');
+            app.EditField_10.Position = [10 422 117 47];
+
+            % Create Player1Lamp_10Label
+            app.Player1Lamp_10Label = uilabel(app.UIFigure);
+            app.Player1Lamp_10Label.HorizontalAlignment = 'right';
+            app.Player1Lamp_10Label.FontSize = 18;
+            app.Player1Lamp_10Label.Position = [10 434 71 22];
+            app.Player1Lamp_10Label.Text = 'Player 1';
+
+            % Create Player1Lamp_10
+            app.Player1Lamp_10 = uilamp(app.UIFigure);
+            app.Player1Lamp_10.Position = [89 431 27 27];
+
+            % Create EditField_11
+            app.EditField_11 = uieditfield(app.UIFigure, 'text');
+            app.EditField_11.Position = [134 368 117 47];
+
+            % Create Player7LampLabel
+            app.Player7LampLabel = uilabel(app.UIFigure);
+            app.Player7LampLabel.HorizontalAlignment = 'right';
+            app.Player7LampLabel.FontSize = 18;
+            app.Player7LampLabel.Position = [134 380 71 22];
+            app.Player7LampLabel.Text = 'Player 7';
+
+            % Create Player7Lamp
+            app.Player7Lamp = uilamp(app.UIFigure);
+            app.Player7Lamp.Position = [213 377 27 27];
+
+            % Create EditField_12
+            app.EditField_12 = uieditfield(app.UIFigure, 'text');
+            app.EditField_12.Position = [134 314 117 47];
+
+            % Create Player12LampLabel
+            app.Player12LampLabel = uilabel(app.UIFigure);
+            app.Player12LampLabel.HorizontalAlignment = 'right';
+            app.Player12LampLabel.FontSize = 18;
+            app.Player12LampLabel.Position = [130 326 82 22];
+            app.Player12LampLabel.Text = 'Player 12';
+
+            % Create Player12Lamp
+            app.Player12Lamp = uilamp(app.UIFigure);
+            app.Player12Lamp.Position = [213 323 27 27];
+
+            % Create EditField_14
+            app.EditField_14 = uieditfield(app.UIFigure, 'text');
+            app.EditField_14.Position = [258 366 117 47];
+
+            % Create Player8LampLabel
+            app.Player8LampLabel = uilabel(app.UIFigure);
+            app.Player8LampLabel.HorizontalAlignment = 'right';
+            app.Player8LampLabel.FontSize = 18;
+            app.Player8LampLabel.Position = [258 378 71 22];
+            app.Player8LampLabel.Text = 'Player 8';
+
+            % Create Player8Lamp
+            app.Player8Lamp = uilamp(app.UIFigure);
+            app.Player8Lamp.Position = [337 375 27 27];
+
+            % Create EditField_15
+            app.EditField_15 = uieditfield(app.UIFigure, 'text');
+            app.EditField_15.Position = [258 312 117 47];
+
+            % Create Player13LampLabel
+            app.Player13LampLabel = uilabel(app.UIFigure);
+            app.Player13LampLabel.HorizontalAlignment = 'right';
+            app.Player13LampLabel.FontSize = 18;
+            app.Player13LampLabel.Position = [254 324 82 22];
+            app.Player13LampLabel.Text = 'Player 13';
+
+            % Create Player13Lamp
+            app.Player13Lamp = uilamp(app.UIFigure);
+            app.Player13Lamp.Position = [337 321 27 27];
+
+            % Create EditField_16
+            app.EditField_16 = uieditfield(app.UIFigure, 'text');
+            app.EditField_16.Position = [10 259 117 47];
+
+            % Create Player16LampLabel
+            app.Player16LampLabel = uilabel(app.UIFigure);
+            app.Player16LampLabel.HorizontalAlignment = 'right';
+            app.Player16LampLabel.FontSize = 18;
+            app.Player16LampLabel.Position = [6 271 82 22];
+            app.Player16LampLabel.Text = 'Player 16';
+
+            % Create Player16Lamp
+            app.Player16Lamp = uilamp(app.UIFigure);
+            app.Player16Lamp.Position = [89 268 27 27];
+
+            % Create EditField_17
+            app.EditField_17 = uieditfield(app.UIFigure, 'text');
+            app.EditField_17.Position = [135 259 117 47];
+
+            % Create Player17LampLabel
+            app.Player17LampLabel = uilabel(app.UIFigure);
+            app.Player17LampLabel.HorizontalAlignment = 'right';
+            app.Player17LampLabel.FontSize = 18;
+            app.Player17LampLabel.Position = [131 271 82 22];
+            app.Player17LampLabel.Text = 'Player 17';
+
+            % Create Player17Lamp
+            app.Player17Lamp = uilamp(app.UIFigure);
+            app.Player17Lamp.Position = [214 268 27 27];
+
+            % Create EditField_18
+            app.EditField_18 = uieditfield(app.UIFigure, 'text');
+            app.EditField_18.Position = [258 259 117 47];
+
+            % Create Player18LampLabel
+            app.Player18LampLabel = uilabel(app.UIFigure);
+            app.Player18LampLabel.HorizontalAlignment = 'right';
+            app.Player18LampLabel.FontSize = 18;
+            app.Player18LampLabel.Position = [254 271 82 22];
+            app.Player18LampLabel.Text = 'Player 18';
+
+            % Create Player18Lamp
+            app.Player18Lamp = uilamp(app.UIFigure);
+            app.Player18Lamp.Position = [337 268 27 27];
+
+            % Create EditField_20
+            app.EditField_20 = uieditfield(app.UIFigure, 'text');
+            app.EditField_20.Position = [383 368 117 47];
+
+            % Create Player9LampLabel
+            app.Player9LampLabel = uilabel(app.UIFigure);
+            app.Player9LampLabel.HorizontalAlignment = 'right';
+            app.Player9LampLabel.FontSize = 18;
+            app.Player9LampLabel.Position = [383 380 71 22];
+            app.Player9LampLabel.Text = 'Player 9';
+
+            % Create Player9Lamp
+            app.Player9Lamp = uilamp(app.UIFigure);
+            app.Player9Lamp.Position = [462 377 27 27];
+
+            % Create EditField_21
+            app.EditField_21 = uieditfield(app.UIFigure, 'text');
+            app.EditField_21.Position = [383 314 117 47];
+
+            % Create Player14LampLabel
+            app.Player14LampLabel = uilabel(app.UIFigure);
+            app.Player14LampLabel.HorizontalAlignment = 'right';
+            app.Player14LampLabel.FontSize = 18;
+            app.Player14LampLabel.Position = [379 326 82 22];
+            app.Player14LampLabel.Text = 'Player 14';
+
+            % Create Player14Lamp
+            app.Player14Lamp = uilamp(app.UIFigure);
+            app.Player14Lamp.Position = [463 323 27 27];
+
+            % Create EditField_22
+            app.EditField_22 = uieditfield(app.UIFigure, 'text');
+            app.EditField_22.Position = [383 258 117 47];
+
+            % Create Player19LampLabel
+            app.Player19LampLabel = uilabel(app.UIFigure);
+            app.Player19LampLabel.HorizontalAlignment = 'right';
+            app.Player19LampLabel.FontSize = 18;
+            app.Player19LampLabel.Position = [378 270 82 22];
+            app.Player19LampLabel.Text = 'Player 19';
+
+            % Create Player19Lamp
+            app.Player19Lamp = uilamp(app.UIFigure);
+            app.Player19Lamp.Position = [462 267 27 27];
+
+            % Create EditField_24
+            app.EditField_24 = uieditfield(app.UIFigure, 'text');
+            app.EditField_24.Position = [508 368 117 47];
+
+            % Create Player10LampLabel
+            app.Player10LampLabel = uilabel(app.UIFigure);
+            app.Player10LampLabel.HorizontalAlignment = 'right';
+            app.Player10LampLabel.FontSize = 18;
+            app.Player10LampLabel.Position = [504 380 82 22];
+            app.Player10LampLabel.Text = 'Player 10';
+
+            % Create Player10Lamp
+            app.Player10Lamp = uilamp(app.UIFigure);
+            app.Player10Lamp.Position = [588 377 27 27];
+
+            % Create EditField_25
+            app.EditField_25 = uieditfield(app.UIFigure, 'text');
+            app.EditField_25.Position = [508 311 117 47];
+
+            % Create Player15LampLabel
+            app.Player15LampLabel = uilabel(app.UIFigure);
+            app.Player15LampLabel.HorizontalAlignment = 'right';
+            app.Player15LampLabel.FontSize = 18;
+            app.Player15LampLabel.Position = [504 323 82 22];
+            app.Player15LampLabel.Text = 'Player 15';
+
+            % Create Player15Lamp
+            app.Player15Lamp = uilamp(app.UIFigure);
+            app.Player15Lamp.Position = [587 320 27 27];
+
+            % Create EditField_27
+            app.EditField_27 = uieditfield(app.UIFigure, 'text');
+            app.EditField_27.Position = [508 258 117 47];
+
+            % Create Player20LampLabel
+            app.Player20LampLabel = uilabel(app.UIFigure);
+            app.Player20LampLabel.HorizontalAlignment = 'right';
+            app.Player20LampLabel.FontSize = 18;
+            app.Player20LampLabel.Position = [504 270 82 22];
+            app.Player20LampLabel.Text = 'Player 20';
+
+            % Create Player20Lamp
+            app.Player20Lamp = uilamp(app.UIFigure);
+            app.Player20Lamp.Position = [587 267 27 27];
+
+            % Create STOPButton
+            app.STOPButton = uibutton(app.UIFigure, 'push');
+            app.STOPButton.ButtonPushedFcn = createCallbackFcn(app, @STOPButtonPushed, true);
+            app.STOPButton.BackgroundColor = [0.651 0.651 0.651];
+            app.STOPButton.FontSize = 30;
+            app.STOPButton.FontWeight = 'bold';
+            app.STOPButton.Position = [261 28 125 53];
+            app.STOPButton.Text = 'STOP';
+
+            % Create UPLOADButton
+            app.UPLOADButton = uibutton(app.UIFigure, 'push');
+            app.UPLOADButton.ButtonPushedFcn = createCallbackFcn(app, @UPLOADButtonPushed, true);
+            app.UPLOADButton.BackgroundColor = [0.651 0.651 0.651];
+            app.UPLOADButton.FontSize = 30;
+            app.UPLOADButton.FontWeight = 'bold';
+            app.UPLOADButton.Position = [411 28 142 53];
+            app.UPLOADButton.Text = 'UPLOAD';
+
+            % Create EditField_28
+            app.EditField_28 = uieditfield(app.UIFigure, 'text');
+            app.EditField_28.ValueChangedFcn = createCallbackFcn(app, @EditField_28ValueChanged, true);
+            app.EditField_28.ValueChangingFcn = createCallbackFcn(app, @EditField_28ValueChanging, true);
+            app.EditField_28.HorizontalAlignment = 'center';
+            app.EditField_28.FontSize = 22;
+            app.EditField_28.Position = [171 134 45 31];
+
+            % Create Label
+            app.Label = uilabel(app.UIFigure);
+            app.Label.FontSize = 20;
+            app.Label.FontWeight = 'bold';
+            app.Label.Position = [10 94 630 24];
+            app.Label.Text = '_______________________________________________________';
+
+            % Create Label_2
+            app.Label_2 = uilabel(app.UIFigure);
+            app.Label_2.FontSize = 20;
+            app.Label_2.FontWeight = 'bold';
+            app.Label_2.Position = [10 249 630 24];
+            app.Label_2.Text = '_______________________________________________________';
+
+            % Create EditField_30
+            app.EditField_30 = uieditfield(app.UIFigure, 'text');
+            app.EditField_30.HorizontalAlignment = 'center';
+            app.EditField_30.FontSize = 22;
+            app.EditField_30.Position = [305 145 91 31];
+
+            % Create EditField_31
+            app.EditField_31 = uieditfield(app.UIFigure, 'text');
+            app.EditField_31.HorizontalAlignment = 'center';
+            app.EditField_31.FontSize = 22;
+            app.EditField_31.Position = [463 145 91 31];
+
+            % Create EditField_32
+            app.EditField_32 = uieditfield(app.UIFigure, 'text');
+            app.EditField_32.HorizontalAlignment = 'center';
+            app.EditField_32.FontSize = 22;
+            app.EditField_32.Position = [83 186 173 31];
+            app.EditField_32.Value = 'Time since start:';
+
+            % Create EditField_33
+            app.EditField_33 = uieditfield(app.UIFigure, 'text');
+            app.EditField_33.HorizontalAlignment = 'center';
+            app.EditField_33.FontSize = 22;
+            app.EditField_33.Position = [305 186 91 31];
+            app.EditField_33.Value = 'Level:';
+
+            % Create EditField_34
+            app.EditField_34 = uieditfield(app.UIFigure, 'text');
+            app.EditField_34.HorizontalAlignment = 'center';
+            app.EditField_34.FontSize = 22;
+            app.EditField_34.Position = [463 186 91 31];
+            app.EditField_34.Value = 'Shuttle:';
+
+            % Create EditField_35
+            app.EditField_35 = uieditfield(app.UIFigure, 'text');
+            app.EditField_35.HorizontalAlignment = 'center';
+            app.EditField_35.FontSize = 22;
+            app.EditField_35.Position = [104 134 46 31];
+
+            % Create MinutesLabel
+            app.MinutesLabel = uilabel(app.UIFigure);
+            app.MinutesLabel.Position = [104 164 48 22];
+            app.MinutesLabel.Text = 'Minutes';
+
+            % Create SecondsLabel
+            app.SecondsLabel = uilabel(app.UIFigure);
+            app.SecondsLabel.Position = [171 164 52 22];
+            app.SecondsLabel.Text = 'Seconds';
+
+            % Create Label_3
+            app.Label_3 = uilabel(app.UIFigure);
+            app.Label_3.FontSize = 24;
+            app.Label_3.FontWeight = 'bold';
+            app.Label_3.Position = [157 135 25 30];
+            app.Label_3.Text = ':';
+
+            % Show the figure after all components are created
+            app.UIFigure.Visible = 'on';
+        end
+    end
+
+    % App creation and deletion
+    methods (Access = public)
+
+        % Construct app
+        function app = System_GUI
+
+            % Create UIFigure and components
+            createComponents(app)
+
+            % Register the app with App Designer
+            registerApp(app, app.UIFigure)
+
+            % Execute the startup function
+            runStartupFcn(app, @startupFcn)
+
+            if nargout == 0
+                clear app
+            end
+        end
+
+        % Code that executes before app deletion
+        function delete(app)
+
+            % Delete UIFigure when app is deleted
+            delete(app.UIFigure)
+        end
+    end
+end
