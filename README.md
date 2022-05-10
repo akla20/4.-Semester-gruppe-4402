@@ -4,12 +4,13 @@ The kodes to our exam project in the 4.th semester of Biomedical Engineering and
 This file is for the versions of the different software we have been using thoughout the project. \\
 
 
+Versions of the software: 
 
-Central unit code: 
+Central unit code: Arduino 1.8.19 
 
-Peripheral A unit code.: 
+Peripheral A unit code.: Arduino 1.8.19 
 
-Peripheral B unit code.: 
+Peripheral B unit code.: Arduino 1.8.19 
 
-Gui code.:  
+Gui code.: MATLAB App Designer version 2021b
 
