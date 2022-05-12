@@ -10,9 +10,7 @@ board manager: esp32 by espressif version 1.0.6
 
 Central unit code: Arduino 1.8.19 
 
-Peripheral A unit code.: Arduino 1.8.19 
-
-Peripheral B unit code.: Arduino 1.8.19 
+Peripheral unit code.: Arduino 1.8.19 
 
 Gui code.: MATLAB App Designer version 2021b
 
