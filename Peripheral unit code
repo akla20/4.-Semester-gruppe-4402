@@ -1,0 +1,349 @@
+/*********
+  Version: 1
+  Date: 13.04.22
+  Update: This is a one track version of the twoway communication code.
+  The code is written to gain the time from the central unit and send back data if "SEND" is written.
+  The variables have been changed to more logical names and comments have been added
+  Author: Jacob
+*********/
+
+#include <esp_now.h>
+#include <WiFi.h>
+
+//The mac address of the central unit (The Master)
+//uint8_t broadcastAddress0[] = {0x08, 0x3A, 0xF2, 0x45, 0x43, 0x9C}; // Jacob TTGO
+//uint8_t broadcastAddress1[] = {0x24, 0x6F, 0x28, 0x0B, 0x6E, 0xFC}; // Jacob NODE MCU
+//uint8_t broadcastAddress2[] = {0x3C, 0x71, 0xBF, 0xF9, 0x49, 0xF8}; // Nikolaj NODE MCU 1
+//uint8_t broadcastAddress3[] = {0xAC, 0x67, 0xB2, 0x28, 0xCF, 0x08}; // Nikolaj Node MCU 2
+//uint8_t broadcastAddress4[] = {0x08, 0x3A, 0xF2, 0x45, 0x34, 0xDC}; // Anders TTGO
+//uint8_t broadcastAddress5[] = {0x24, 0x6F, 0x28, 0x0B, 0x7A, 0xC4}; // Anders Node MCU
+//uint8_t broadcastAddress6[] = {0x08, 0x3A, 0xF2, 0x45, 0x42, 0xE8}; // Kristin TTGO
+//uint8_t broadcastAddress7[] = {0x24, 0x6F, 0x28, 0x0B, 0x7B, 0x34}; // Kristin NODE MCU
+//uint8_t broadcastAddress8[] = {0x08, 0x3A, 0xF2, 0x45, 0x35, 0xA4}; // Morten TTGO
+//uint8_t broadcastAddress9[] = {0x24, 0x6F, 0x28, 0x0B, 0x64, 0xA8}; // Morten NODE MCU
+//uint8_t broadcastAddress10[] = {0x08, 0x3A, 0xF2, 0x43, 0x57, 0x98}; // M5STack
+//uint8_t broadcastAddress11[] = {0x08, 0x3A, 0xF2, 0x45, 0x36, 0x14}; // Ansofie TTGO
+//uint8_t broadcastAddress12[] = {0x24, 0x6F, 0x28, 0x7A, 0xF9, 0x5C}; // Ansofie NODE MCU
+uint8_t broadcastAddress0[] = {0x08, 0x3A, 0xF2, 0x45, 0x42, 0xC4}; // Nikolaj TTGO
+//uint8_t broadcastAddress14[] = {0x24, 0x6F, 0x28, 0x0B, 0x70, 0xDC}; // Morten U. NODE MCU
+//uint8_t broadcastAddress15[] = {0x3C, 0x71, 0xBF, 0xF9, 0xF7, 0x9C}; // Jesper NODE MCU
+//uint8_t broadcastAddress16[] = {0x24, 0x6F, 0x28, 0x7A, 0xA2, 0xD4}; // FREJA NOCE MCU
+
+
+//Initialise the needed variables and flags
+unsigned long TimerBegin, Time, Running_time, SendTime;
+bool enkelt_start = true;
+bool enkelt_stop = false;
+bool start_flag = false;
+//bool sensor_skifte_flag;
+bool meassure_arrival_flag = true;
+bool meassure_DEPARTURE_flag = true;
+String success;
+
+//Needed for two way communication
+esp_now_peer_info_t peerInfo;
+
+/*
+  //Initialise the message to be recived from the periferials (MUST MATCH THEIR NAME IN THEIR CODE)
+  typedef struct struct_arrivaltime {
+  float arrival_time;
+  float departure_time;
+  bool sensor_skifte_flag;
+  } struct_arrivaltime;
+*/
+//Initialise the message to be recived from the periferials (MUST MATCH THEIR NAME IN THEIR CODE)
+typedef struct struct_send_data {
+  int sensor_identifier = 1;
+  float p1_arrival_time;
+  float p1_departure_time;
+  float p2_arrival_time;
+  float p2_departure_time;
+  float p3_arrival_time;
+  float p3_departure_time;
+  float p4_arrival_time;
+  float p4_departure_time;
+} struct_send_data;
+
+
+// Create a struct_message to hold incoming sensor readings
+struct_send_data senddata;
+
+
+//Initliase the messege to be send to all perifireals (MUST MATCH THEIR NAME IN THEIR CODE)
+typedef struct struct_initialisetime {
+  bool starter;
+} struct_initialisetime;
+
+struct_initialisetime NewTime;
+
+//callback function that will be executed when data is received
+void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
+  memcpy(&NewTime, incomingData, sizeof(NewTime));
+  Serial.println("Started");
+  //Serial.print("Bytes received: ");
+  //Serial.println(len);
+}
+
+// Callback when data is sent
+void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+  Serial.print("\r\nLast Packet Send Status:\t");
+  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+  if (status == 0) {
+    success = "Delivery Success :)";
+  }
+  else {
+    success = "Delivery Fail :(";
+  }
+}
+
+///////// FSR KODE //////////
+
+#define FORCE_SENSOR_P1 A0
+#define FORCE_SENSOR_P2 A3
+#define FORCE_SENSOR_P3 A6
+#define FORCE_SENSOR_P4 A4
+
+unsigned long P1_newSample, P1_oldSample;
+unsigned long P2_newSample, P2_oldSample;
+unsigned long P3_newSample, P3_oldSample;
+unsigned long P4_newSample, P4_oldSample;
+
+unsigned long arrival_time, departure_time;
+
+int Threshold = 100;
+
+int i;
+int m;
+unsigned long delaytime = 2000;
+
+///////// FSR KODE //////////
+
+
+
+//Hele arrayet i millis uden tolerance
+int Beeb_array [] = {0, 8470, 16940, 25410, 33880, 42350, 50820, 59290, 67760, //Level 1
+                     75760, 83760, 91760, 99760, 107760, 115760, 123760, 131760, //Level 2
+                     139340, 146920, 154500, 162080, 169660, 177240, 184820, 192400, //Level 3
+                     199600, 206800, 214000, 221200, 228400, 235600, 242800, 250000, 257200, //Level 4
+                     264060, 270920, 277780, 284640, 291500, 298360, 305220, 312080, 318940, //Level 5
+                     325490, 332040, 338590, 345140, 351690, 358240, 364790, 371340, 377890, 384440, //Level 6
+                     390700, 396960, 403220, 409480, 415740, 422000, 428260, 434520, 440780, 447040, //Level 7
+                     453040, 459040, 465040, 471040, 477040, 483040, 489040, 495040, 501040, 507040, 513040, //Level 8
+                     518800, 524560, 530320, 536080, 541840, 547600, 553360, 559120, 564880, 570640, 576400, //Level 9
+                     581940, 587480, 593020, 598560, 604100, 609640, 615180, 620720, 626260, 631800, 637340, //Level 10
+                     642670, 648000, 653330, 658660, 663990, 669320, 674650, 679980, 685310, 690640, 695970, 701300, //Level 11
+                     706440, 711580, 716720, 721860, 727000, 732140, 737280, 742420, 747560, 752700, 757840, 762980, //Level 12
+                     767950, 772920, 777890, 782860, 787830, 792800, 797770, 802740, 807710, 812680, 817650, 822620, 827590, //Level 13
+                     832390, 837190, 841990, 846790, 851590, 856390, 861190, 865990, 870790, 875590, 880390, 885190, 889990, //Level 14
+                     894640, 899290, 903940, 908590, 913240, 917890, 922540, 927190, 931840, 936490, 941140, 945790, 950440, //Level 15
+                     954940, 959440, 963940, 968440, 972940, 977440, 981940, 986440, 990940, 995440, 999940, 1004440, 1008940, 1013440, //Level 16
+                     1017800, 1022160, 1026520, 1030880, 1035240, 1039600, 1043960, 1048320, 1052680, 1057040, 1061400, 1065760, 1070120, 1074480, //Level 17
+                     1078720, 1082960, 1087200, 1091440, 1095680, 1099920, 1104160, 1108400, 1112640, 1116880, 1121120, 1125360, 1129600, 1133840, 1138080, //Level 18
+                     1142190, 1146300, 1150410, 1154520, 1158630, 1162740, 1166850, 1170960, 1175070, 1179180, 1183290, 1187400, 1191510, 1195620, 1199730, //Level 19
+                     1203730, 1207730, 1211730, 1215730, 1219730, 1223730, 1227730, 1231730, 1235730, 1239730, 1243730, 1247730, 1251730, 1255730, 1259730, 1263730, //Level 20
+                     1267620, 1271510, 1275400, 1279290, 1283180, 1287070, 1290960, 1294850, 1298740, 1302630, 1306520, 1310410, 1314300, 1318190, 1322080, 1325970 //Level 21
+                    };
+
+
+//Hele arrayet i millis med tolerancer
+int Beeb_array_with_tollerance [] = {0, 9320, 17790, 26260, 34730, 43200, 51670, 60140, 68610, //Level 1
+                                     76560, 84560, 92560, 100560, 108560, 116560, 124560, 132560, //Level 2
+                                     140100, 147680, 155260, 162840, 170420, 178000, 185580, 193160, //Level 3
+                                     200320, 207520, 214720, 221920, 229120, 236320, 243520, 250720, 257920, //Level 4
+                                     264750, 271610, 278470, 285330, 292190, 299050, 305910, 312770, 319630, //Level 5
+                                     326150, 332700, 339250, 345800, 352350, 358900, 365450, 372000, 378550, 385100, //Level 6
+                                     391330, 397590, 403850, 410110, 416370, 422630, 428890 , 435150, 441410, 447670, //Level 7
+                                     453640, 459640, 465640, 471640, 477640, 483640, 489640, 495640, 501640, 507640, 513640, //Level 8
+                                     519380, 525140, 530900, 536660, 542420, 548180, 553940, 559700, 565460, 571220, 576980, //Level 9
+                                     582490, 588030, 593570, 599110, 604650, 610190, 615730, 621270, 626810, 632350, 637890, //Level 10
+                                     643200, 648530, 653860, 659190, 664520, 669850, 675180, 680510, 685840, 691170, 696500, 701830, //Level 11
+                                     706950, 712090, 717230, 722370, 727510, 732650, 737790, 742930, 748070, 753210, 758350, 763490, //Level 12
+                                     768450, 773420, 778390, 783360, 788330, 793300, 798270, 803240, 808210, 813180, 818150, 823120, 828090, //Level 13
+                                     832870, 837670, 842470, 847270, 852070, 856870, 861670, 866470, 871270, 876070, 880870, 885670, 890470, //Level 14
+                                     895110, 899760, 904410, 909060, 913710, 918360, 923010, 927660, 932310, 936960, 941610, 946260, 950910, //Level 15
+                                     955390, 959890, 964390, 968890, 973390, 977890, 982390, 986890, 991390, 995890, 1000390, 1004890, 1009390, 1013890, //Level 16
+                                     1018240, 1022600, 1026960, 1031320, 1035680, 1040040, 1044400, 1048760, 1053120, 1057480, 1061840, 1066200, 1070560, 1074920, //Level 17
+                                     1079140, 1083380, 1087620, 1091860, 1096100, 1100340, 1104580, 1108820, 1113060, 1117300, 1121540, 1125780, 1130020, 1134260, 1138500, //Level 18
+                                     1142600, 1146710, 1150820, 1154930, 1159040, 1163150, 1167260, 1171370, 1175480, 1179590, 1183700, 1187810, 1191920, 1196030, 1200140, //Level 19
+                                     1204130, 1208130, 1212130, 1216130, 1220130, 1224130, 1228130, 1232130, 1236130, 1240130, 1244130, 1248130, 1252130, 1256130, 1260130, 1264130, //Level 20
+                                     1268010, 1271900, 1275790, 1279680, 1283570, 1287460, 1291350, 1295240, 1299130, 1303020, 1306910, 1310800, 1314690, 1318580, 1322470, 1326360 //Level 21
+                                    };
+
+
+
+
+
+void setup() {
+  //Initialize Serial Monitor
+  Serial.begin(115200);
+
+  //Set device as a Wi-Fi Station
+  WiFi.mode(WIFI_STA);
+
+  //Init ESP-NOW
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("Error initializing ESP-NOW");
+    return;
+  }
+  esp_now_register_send_cb(OnDataSent);
+
+  peerInfo.channel = 0;
+  peerInfo.encrypt = false;
+
+  // register central unit as a peer
+  memcpy(peerInfo.peer_addr, broadcastAddress0, 6);
+  if (esp_now_add_peer(&peerInfo) != ESP_OK) {
+    Serial.println("Failed to add peer");
+    return;
+  }
+
+  // Once ESPNow is successfully Init, we will register for recv CB to
+  // get recv packer info
+  esp_now_register_recv_cb(OnDataRecv);
+
+}
+
+void loop() {
+
+
+  // FOR TESTING
+
+  if (Serial.available()) { // if there is data comming
+    String command = Serial.readStringUntil('\n'); // read string until newline character
+
+    if (command == "START") {
+      NewTime.starter = true;
+    }
+    else if (command == "STOP") {
+      NewTime.starter = false;
+    }
+  }
+
+  // FOR TESTING
+
+  //The different functions to be called depending on the input from the central unit
+  if (NewTime.starter == true && enkelt_start == true) {
+    delay(6681); // M5-Stack delay for beep,beep,beep BEEP
+    TimerBegin = millis(); // New time baseline
+    Serial.println("Test started");
+    enkelt_start = false;
+    enkelt_stop = true;
+    start_flag = true;
+
+    if (P1_newSample > Threshold) {
+      i = 1;
+      m = 0;
+      Serial.print("i starter med: ");
+      Serial.println(i);
+      Serial.print("STARTER PÅ SENSOR");
+    }
+    else {
+      i = 0;
+      m = 1;
+      Serial.print("i starter med: ");
+      Serial.println(i);
+      Serial.print("STARTER VÆK FRA SENSOR");
+    }
+  }
+
+  if (NewTime.starter == false && enkelt_stop == true) {
+    Serial.println("Test stopped");
+    enkelt_start = true;
+    enkelt_stop = false;
+    start_flag = false;
+  }
+
+  // Sends data after each shuttle
+  Time = millis();
+  Running_time = Time - TimerBegin;
+
+  if (Running_time >= Beeb_array [m + 1] & start_flag) {
+    m++;
+    m++;
+
+  }
+
+
+  if (Running_time >= Beeb_array_with_tollerance [i + 1] + delaytime & start_flag == true) {
+    Serial.print("Running_time: ");
+    Serial.println(Running_time);
+    esp_err_t result = esp_now_send(0, (uint8_t *) &senddata, sizeof(struct_send_data));
+    Serial.println("SENDING:");
+    Serial.print("senddata.p1_arrival_time: ");
+    Serial.println(senddata.p1_arrival_time);
+    Serial.print("senddata.p1_departure_time: ");
+    Serial.println(senddata.p1_departure_time);
+    i++;
+    i++;
+    Serial.print("i: ");
+    Serial.println(i);
+
+  }
+
+  ///////// FSR KODE //////////
+
+  // PARTICIPANT 1
+
+  P1_oldSample = P1_newSample;
+  P1_newSample = analogRead(FORCE_SENSOR_P1);
+  //Serial.println(P1_newSample);
+  //Serial.print(" ");
+  /*
+    // PARTICIPANT 2
+
+    P2_oldSample = P2_newSample;
+    P2_newSample = analogRead(FORCE_SENSOR_P2);
+    //Serial.print(P2_newSample);
+    //Serial.print(" ");
+
+    // PARTICIPANT 3
+
+    P3_oldSample = P3_newSample;
+    P3_newSample = analogRead(FORCE_SENSOR_P3);
+    //Serial.print(P3_newSample);
+    //Serial.print(" ");
+
+
+    // PARTICIPANT 4
+
+    P4_oldSample = P4_newSample;
+    P4_newSample = analogRead(FORCE_SENSOR_P4);
+    //Serial.println(P4_newSample);
+
+  */
+  // PARTICIPANT 1
+  if (Beeb_array_with_tollerance [i] + delaytime < Running_time &  Running_time  < Beeb_array_with_tollerance [i + 1]) {
+
+    if (P1_oldSample <= Threshold && P1_newSample > Threshold) //
+    {
+      arrival_time = millis();
+      senddata.p1_arrival_time =  arrival_time - TimerBegin;
+      //senddata.sensor_identifier = 1; // The one of two differences from the other peripheral code
+      //esp_err_t result = esp_now_send(0, (uint8_t *) &senddata, sizeof(struct_send_data));
+
+      Serial.print("Arrival_time: ");
+      Serial.println(senddata.p1_arrival_time);
+
+    }
+  }
+
+  if (Beeb_array [m] < Running_time &  Running_time  < Beeb_array [m + 1]) { //&  Running_time  < Beeb_array [m+1]
+
+    if (P1_oldSample >= Threshold && P1_newSample < Threshold & meassure_DEPARTURE_flag)
+    {
+      departure_time = millis();
+      senddata.p1_departure_time =  departure_time - TimerBegin;
+      //senddata.sensor_identifier = 1;
+      //esp_err_t result = esp_now_send(0, (uint8_t *) &senddata, sizeof(struct_send_data));
+
+      Serial.print("Departure_time: ");
+      Serial.println(senddata.p1_departure_time);
+
+    }
+  }
+
+  ///////// FSR KODE //////////
+
+  delay(10);
+
+}
