@@ -15,4 +15,4 @@ Peripheral unit code.: Arduino 1.8.19
 Gui code.: MATLAB App Designer version 2021b
 
 
-<img src="https://user-images.githubusercontent.com/499192/57450172-1a955f80-725e-11e9-9fed-267179bdab15.gif" alt="Example of uploading image to GitHub's CDN" width="500px">
+<img src="https://github.com/akla20/4.-Semester-gruppe-4402/blob/25e0fde4f3b760ce01f6830f197d6776944660eb/System%20overview.png" alt="Example of uploading image to GitHub's CDN" width="500px">
