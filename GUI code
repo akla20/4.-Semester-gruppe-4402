@@ -147,6 +147,7 @@ classdef System_GUI < matlab.apps.AppBase
             app.EditField_28.Value = sprintf("%.0f",0.00);
             app.EditField_35.Value = sprintf("%.0f",0.00);
             app.STOPButton.Enable = false;
+            app.UPLOADButton.Enable = false;
         end
 
         % Button pushed function: STARTButton
@@ -236,7 +237,8 @@ classdef System_GUI < matlab.apps.AppBase
 
       % Disable stop button and enable start button
             app.STOPButton.Enable = false;
-            app.STARTButton.Enable = true;    
+            app.STARTButton.Enable = true;
+            app.UPLOADButton.Enable = true;
         end
 
         % Button pushed function: UPLOADButton
