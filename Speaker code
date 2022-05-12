@@ -1,1 +1,365 @@
+/*
+*******************************************************************************
+  hvem har begået kriminaliteten: Morten og Anders
+  describe：speaker with esp-now
+  date：2022/04/26
+*******************************************************************************
+*/
+#include <Arduino.h>
+#include <M5Core2.h>
+#include <driver/i2s.h>
+#include <esp_now.h>
+#include <WiFi.h>
 
+//The mac address of the central unit (The Master)
+uint8_t broadcastAddress1[] = {0x24, 0x6F, 0x28, 0x0B, 0x7A, 0xC4}; // Anders Node MCU
+
+//Initialise the needed variables and flags for ESP-NOW
+unsigned long TimerBegin, Timer_run, Time, StopTime, TotalRunningTime;
+bool enkelt_start = true;
+bool enkelt_stop = false;
+
+String success;
+
+//Needed for two way communication
+esp_now_peer_info_t peerInfo;
+
+//Initialise the message to be recived from the periferials (MUST MATCH THEIR NAME IN THEIR CODE)
+typedef struct struct_arrivaltime
+{
+  float arrival_time;
+  float departure_time;
+} struct_arrivaltime;
+
+// Create a struct_message to hold incoming sensor readings
+struct_arrivaltime senddata;
+
+//Initliase the messege to be send to all perifireals (MUST MATCH THEIR NAME IN THEIR CODE)
+typedef struct struct_initialisetime
+{
+  bool starter;
+} struct_initialisetime;
+
+struct_initialisetime NewTime;
+
+/// her defineres tiden som det tager at få beep lyden initieret, som starten
+unsigned long tidstagning1, tidstagning2;
+
+
+//callback function that will be executed when data is received
+void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len)
+{
+  memcpy(&NewTime, incomingData, sizeof(NewTime));
+}
+
+// Callback when data is sent
+void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
+{
+  Serial.print("\r\nLast Packet Send Status:\t");
+  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+  if (status == 0)
+  {
+    success = "Delivery Success :)";
+  }
+  else
+  {
+    success = "Delivery Fail :(";
+  }
+}
+
+char timeStrbuff[64];
+
+RTC_TimeTypeDef RTCtime;
+// Referring to external data
+//extern const unsigned char lyd_4[1164240]; //en lyd jeg ikke kender til måske windows lyden der er slettet
+extern const unsigned char lyd_2[120264];   // beep lang
+extern const unsigned char lyd_3[120264];    // beep kort
+
+extern const unsigned char SettingAppImage[50771];
+extern const unsigned char bibiSig[8820];
+extern const unsigned char CoreMainImage[87169];
+
+unsigned long Timer_run2, Timer_begin, Time2, Shuttle_time_incriment, Shuttle_time_run;
+
+int Sec_offset;
+int sec_vari = 1;
+int loopi;
+
+#define CONFIG_I2S_BCK_PIN     12
+#define CONFIG_I2S_LRCK_PIN    0
+#define CONFIG_I2S_DATA_PIN    2
+#define CONFIG_I2S_DATA_IN_PIN 34
+
+#define Speak_I2S_NUMBER I2S_NUM_0
+
+#define MODE_MIC  0
+#define MODE_SPK  1
+#define DATA_SIZE 1024
+
+bool beep_after_1_time = false;
+bool starting = false;
+bool Bib_running = false;
+bool opstart = true;
+
+uint8_t microphonedata0[1024 * 100];
+int data_offset = 0;
+
+bool InitI2SSpeakOrMic(int mode)
+{ // Init I2S.
+  esp_err_t err = ESP_OK;
+
+  i2s_driver_uninstall(
+    Speak_I2S_NUMBER);  // Uninstall the I2S driver.
+  i2s_config_t i2s_config =
+  {
+    .mode = (i2s_mode_t)(I2S_MODE_MASTER),  // Set the I2S operating mode.
+    .sample_rate = 44100,  // Set the I2S sampling rate.
+    .bits_per_sample =
+    I2S_BITS_PER_SAMPLE_16BIT,  // Fixed 12-bit stereo MSB.
+    .channel_format =
+    I2S_CHANNEL_FMT_ONLY_RIGHT,  // Set the channel format.
+    .communication_format =
+    I2S_COMM_FORMAT_I2S,  // Set the format of the communication.
+    .intr_alloc_flags =
+    ESP_INTR_FLAG_LEVEL1,  // Set the interrupt flag.
+    .dma_buf_count = 2,        // DMA buffer count.
+    .dma_buf_len   = 128,      // DMA buffer length.
+  };
+  if (mode == MODE_MIC)
+  {
+    i2s_config.mode =
+      (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX | I2S_MODE_PDM);
+  } else {
+    i2s_config.mode     = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX);
+    i2s_config.use_apll = false;  // I2S clock setup.
+    i2s_config.tx_desc_auto_clear =
+      true;  // Enables auto-cleanup descriptors for understreams.
+  }
+  // Install and drive I2S.
+  err += i2s_driver_install(Speak_I2S_NUMBER, &i2s_config, 0, NULL);
+
+  i2s_pin_config_t tx_pin_config;
+
+#if (ESP_IDF_VERSION > ESP_IDF_VERSION_VAL(4, 3, 0))
+  tx_pin_config.mck_io_num = I2S_PIN_NO_CHANGE;
+#endif
+  tx_pin_config.bck_io_num =
+    CONFIG_I2S_BCK_PIN;  // Link the BCK to the CONFIG_I2S_BCK_PIN pin.
+  // BCKCONFIG_I2S_BCK_PIN
+  tx_pin_config.ws_io_num    = CONFIG_I2S_LRCK_PIN;     
+  tx_pin_config.data_out_num = CONFIG_I2S_DATA_PIN;     
+  tx_pin_config.data_in_num  = CONFIG_I2S_DATA_IN_PIN;  
+  err +=
+    i2s_set_pin(Speak_I2S_NUMBER,
+                &tx_pin_config);  // Set the I2S pin number
+  err += i2s_set_clk(
+           Speak_I2S_NUMBER, 44100, I2S_BITS_PER_SAMPLE_16BIT,
+           I2S_CHANNEL_MONO);  // Set the clock and bitwidth used by I2S Rx and Tx.
+  return true;
+}
+
+void DisplayInit(void) {       // Initialize the display.
+  M5.Lcd.setTextColor(BLACK, WHITE); // Set the text color to black and BG to white
+  M5.Lcd.setTextSize(2);  // Set font size to 2.
+  M5.Lcd.clear(WHITE);
+}
+
+void SpeakInit(void) {
+  M5.Axp.SetSpkEnable(true);
+  InitI2SSpeakOrMic(MODE_SPK);
+}
+
+void Beep_kort(void) {
+  size_t bytes_written = 0;
+  i2s_write(Speak_I2S_NUMBER, lyd_3, 120264, &bytes_written,
+            portMAX_DELAY);
+}
+void Beep_lang(void) {
+  size_t bytes_written = 0;
+  i2s_write(Speak_I2S_NUMBER, lyd_2, 120264, &bytes_written,
+            portMAX_DELAY);
+}
+
+void flushTime()
+{
+  M5.Rtc.GetTime(&RTCtime);  // Gets the time in the real-time clock.
+  sprintf(timeStrbuff, "%02d:%02d:%02d", RTCtime.Hours, RTCtime.Minutes,
+          RTCtime.Seconds);
+  M5.lcd.setCursor(10, 100);  // Move the cursor position to (x,y).
+  M5.Lcd.println(timeStrbuff);
+
+}
+
+void setupTime()
+{
+  RTCtime.Hours = 0;  // Set the time.
+  RTCtime.Minutes = 0;
+  RTCtime.Seconds = 0;
+  if (!M5.Rtc.SetTime(&RTCtime)) Serial.println("wrong time set!");
+}
+
+void setup()
+{
+  Serial.begin(115200);
+  delay(400);
+  M5.begin();  // Init M5Core2.
+  DisplayInit(); // Init M5display.
+  SpeakInit(); // Init M5speaker.
+
+  //Set device as a Wi-Fi Station
+  WiFi.mode(WIFI_STA);
+
+  //Init ESP-NOW
+  if (esp_now_init() != ESP_OK)
+  {
+    Serial.println("Error initializing ESP-NOW");
+    return;
+  }
+  esp_now_register_send_cb(OnDataSent);
+
+  peerInfo.channel = 0;
+  peerInfo.encrypt = false;
+
+  // register central unit as a peer
+  memcpy(peerInfo.peer_addr, broadcastAddress1, 6);
+  if (esp_now_add_peer(&peerInfo) != ESP_OK)
+  {
+    Serial.println("Failed to add peer");
+    return;
+  }
+
+  // Once ESPNow is successfully Init, we will register for recv CB to
+  // get recv packer info
+  esp_now_register_recv_cb(OnDataRecv);
+}
+
+
+void loop() {
+
+  //variables
+
+  //number of shuttle repeats per level
+  byte  shuttles[] = {8, 8, 8, 9, 9, 10, 10, 11, 11, 11, 12, 12, 13, 13, 13, 14, 14, 15, 15, 16, 16};
+
+  //shuttle times in hundredth seconds
+  int shuttle_times[] = {8470, 8000, 7580, 7200, 6860, 6550, 6260, 6000, 5760, 5540, 5330, 5140, 4970, 4800, 4650, 4500, 4360, 4240, 4110, 4000, 3890};
+
+  const byte elements = 21; //the number of elements in each of the arrays
+
+  //variable for vo2 data array counter
+  int k = 0;
+
+  //variable for levels loop
+  int l = 1;
+
+  //variable for shuttles loop
+  int s = 1;
+
+  M5.update();
+  if (NewTime.starter == true && enkelt_start == true)
+  {
+    tidstagning1 = millis();
+    TimerBegin = millis(); // New time baseline
+    enkelt_start = false;
+    enkelt_stop = true;
+    starting = true;
+  }
+  starting = true;
+  if (starting == true)
+  {
+
+    SpeakInit();
+    M5.Lcd.setTextSize(8);
+    M5.Lcd.clear(WHITE);
+    M5.Lcd.drawString("3", 160, 120, 1);
+    //int timerbeepshort = millis();
+    Beep_kort();
+    //int timerbeepshort1 = millis();
+    //int totalshortbeeptime = timerbeepshort1 - timerbeepshort;
+    Serial.println(totalshortbeeptime);
+    delay(400);
+    M5.Lcd.clear(WHITE);
+    M5.Lcd.drawString("2", 160, 120, 1);
+    Beep_kort();
+    delay(400);
+    M5.Lcd.clear(WHITE);
+    M5.Lcd.drawString("1", 160, 120, 1);
+    Beep_kort();
+    delay(300);
+    M5.Lcd.clear(WHITE);
+    M5.Lcd.setCursor(130, 100);
+    M5.Lcd.drawString("GO", 160, 120, 1);
+    Beep_lang();
+    Timer_begin = millis();
+    Shuttle_time_incriment = millis();
+    setupTime();
+    Bib_running = true;
+    starting = false;
+    tidstagning2 = millis();
+    M5.Lcd.clear(WHITE);
+    M5.Lcd.setTextSize(4);
+    M5.Lcd.setCursor(10, 10);
+    M5.Lcd.printf("Levels:  %d", l);
+    M5.Lcd.setCursor(10, 40);
+    M5.Lcd.printf("Shuttle: %d", s);
+    Serial.println(tidstagning2 - tidstagning1);
+  }
+
+
+  while (Bib_running == true) //Serial.println("Start bib_running");
+  {
+    Timer_run2 = millis();
+    Time2 = Timer_run2 - Timer_begin;
+    Shuttle_time_run = Timer_run2 - Shuttle_time_incriment;
+    loopi++;
+
+    if (loopi == 1000)
+    {
+      flushTime();
+      loopi = 0;
+    }
+
+    M5.update();
+    if (NewTime.starter == false && enkelt_stop == true)
+    {
+      Serial.println("Test stopped");
+      StopTime = millis();
+      M5.Lcd.clear(WHITE);
+      M5.Lcd.drawString("Test stopped", 20, 110, 1);
+      TotalRunningTime = StopTime - TimerBegin;
+      Serial.print("Test time: ");
+      Serial.println(TotalRunningTime);
+      enkelt_start = true;
+      enkelt_stop = false;
+      delay(1000);
+      while (1) {} //finished so just hold here
+    }
+
+    if (Shuttle_time_run > shuttle_times[l - 1] && s == shuttles[l - 1])
+    {
+      Shuttle_time_incriment = millis();
+      l++;
+      s = 1;
+      Beep_lang();
+      M5.Lcd.clear(WHITE);
+      M5.Lcd.setTextSize(4);
+      M5.Lcd.setCursor(10, 10);
+      M5.Lcd.printf("Levels:  %d", l);
+      M5.Lcd.setCursor(10, 40);
+      M5.Lcd.printf("Shuttle: %d", s);
+    }
+    else if (Shuttle_time_run > shuttle_times[l - 1])
+    {
+      Shuttle_time_incriment = millis();
+      s++;
+      Beep_kort();
+      M5.Lcd.clear(WHITE);
+      M5.Lcd.setTextSize(4);
+      M5.Lcd.setCursor(10, 10);
+      M5.Lcd.printf("Levels:  %d", l);
+      M5.Lcd.setCursor(10, 40);
+      M5.Lcd.printf("Shuttle: %d", s);
+
+    }
+  }
+}
