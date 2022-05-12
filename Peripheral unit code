@@ -1,33 +1,15 @@
 /*********
-  Version: 1
-  Date: 13.04.22
-  Update: This is a one track version of the twoway communication code.
-  The code is written to gain the time from the central unit and send back data if "SEND" is written.
-  The variables have been changed to more logical names and comments have been added
-  Author: Jacob
+  Version: 1.8
+  Date: 11.05.22
+  Author: Gruppe 4402
 *********/
 
 #include <esp_now.h>
 #include <WiFi.h>
 
 //The mac address of the central unit (The Master)
-//uint8_t broadcastAddress0[] = {0x08, 0x3A, 0xF2, 0x45, 0x43, 0x9C}; // Jacob TTGO
-//uint8_t broadcastAddress1[] = {0x24, 0x6F, 0x28, 0x0B, 0x6E, 0xFC}; // Jacob NODE MCU
-//uint8_t broadcastAddress2[] = {0x3C, 0x71, 0xBF, 0xF9, 0x49, 0xF8}; // Nikolaj NODE MCU 1
-//uint8_t broadcastAddress3[] = {0xAC, 0x67, 0xB2, 0x28, 0xCF, 0x08}; // Nikolaj Node MCU 2
-//uint8_t broadcastAddress4[] = {0x08, 0x3A, 0xF2, 0x45, 0x34, 0xDC}; // Anders TTGO
-//uint8_t broadcastAddress5[] = {0x24, 0x6F, 0x28, 0x0B, 0x7A, 0xC4}; // Anders Node MCU
-//uint8_t broadcastAddress6[] = {0x08, 0x3A, 0xF2, 0x45, 0x42, 0xE8}; // Kristin TTGO
-//uint8_t broadcastAddress7[] = {0x24, 0x6F, 0x28, 0x0B, 0x7B, 0x34}; // Kristin NODE MCU
-//uint8_t broadcastAddress8[] = {0x08, 0x3A, 0xF2, 0x45, 0x35, 0xA4}; // Morten TTGO
-//uint8_t broadcastAddress9[] = {0x24, 0x6F, 0x28, 0x0B, 0x64, 0xA8}; // Morten NODE MCU
-//uint8_t broadcastAddress10[] = {0x08, 0x3A, 0xF2, 0x43, 0x57, 0x98}; // M5STack
-//uint8_t broadcastAddress11[] = {0x08, 0x3A, 0xF2, 0x45, 0x36, 0x14}; // Ansofie TTGO
-//uint8_t broadcastAddress12[] = {0x24, 0x6F, 0x28, 0x7A, 0xF9, 0x5C}; // Ansofie NODE MCU
 uint8_t broadcastAddress0[] = {0x08, 0x3A, 0xF2, 0x45, 0x42, 0xC4}; // Nikolaj TTGO
-//uint8_t broadcastAddress14[] = {0x24, 0x6F, 0x28, 0x0B, 0x70, 0xDC}; // Morten U. NODE MCU
-//uint8_t broadcastAddress15[] = {0x3C, 0x71, 0xBF, 0xF9, 0xF7, 0x9C}; // Jesper NODE MCU
-//uint8_t broadcastAddress16[] = {0x24, 0x6F, 0x28, 0x7A, 0xA2, 0xD4}; // FREJA NOCE MCU
+
 
 
 //Initialise the needed variables and flags
@@ -35,7 +17,6 @@ unsigned long TimerBegin, Time, Running_time, SendTime;
 bool enkelt_start = true;
 bool enkelt_stop = false;
 bool start_flag = false;
-//bool sensor_skifte_flag;
 bool meassure_arrival_flag = true;
 bool meassure_DEPARTURE_flag = true;
 String success;
@@ -43,14 +24,7 @@ String success;
 //Needed for two way communication
 esp_now_peer_info_t peerInfo;
 
-/*
-  //Initialise the message to be recived from the periferials (MUST MATCH THEIR NAME IN THEIR CODE)
-  typedef struct struct_arrivaltime {
-  float arrival_time;
-  float departure_time;
-  bool sensor_skifte_flag;
-  } struct_arrivaltime;
-*/
+
 //Initialise the message to be recived from the periferials (MUST MATCH THEIR NAME IN THEIR CODE)
 typedef struct struct_send_data {
   int sensor_identifier = 1;
@@ -80,8 +54,6 @@ struct_initialisetime NewTime;
 void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
   memcpy(&NewTime, incomingData, sizeof(NewTime));
   Serial.println("Started");
-  //Serial.print("Bytes received: ");
-  //Serial.println(len);
 }
 
 // Callback when data is sent
@@ -286,31 +258,8 @@ void loop() {
 
   P1_oldSample = P1_newSample;
   P1_newSample = analogRead(FORCE_SENSOR_P1);
-  //Serial.println(P1_newSample);
-  //Serial.print(" ");
-  /*
-    // PARTICIPANT 2
-
-    P2_oldSample = P2_newSample;
-    P2_newSample = analogRead(FORCE_SENSOR_P2);
-    //Serial.print(P2_newSample);
-    //Serial.print(" ");
-
-    // PARTICIPANT 3
-
-    P3_oldSample = P3_newSample;
-    P3_newSample = analogRead(FORCE_SENSOR_P3);
-    //Serial.print(P3_newSample);
-    //Serial.print(" ");
 
 
-    // PARTICIPANT 4
-
-    P4_oldSample = P4_newSample;
-    P4_newSample = analogRead(FORCE_SENSOR_P4);
-    //Serial.println(P4_newSample);
-
-  */
   // PARTICIPANT 1
   if (Beeb_array_with_tollerance [i] + delaytime < Running_time &  Running_time  < Beeb_array_with_tollerance [i + 1]) {
 
@@ -318,12 +267,9 @@ void loop() {
     {
       arrival_time = millis();
       senddata.p1_arrival_time =  arrival_time - TimerBegin;
-      //senddata.sensor_identifier = 1; // The one of two differences from the other peripheral code
-      //esp_err_t result = esp_now_send(0, (uint8_t *) &senddata, sizeof(struct_send_data));
 
       Serial.print("Arrival_time: ");
       Serial.println(senddata.p1_arrival_time);
-
     }
   }
 
@@ -333,8 +279,6 @@ void loop() {
     {
       departure_time = millis();
       senddata.p1_departure_time =  departure_time - TimerBegin;
-      //senddata.sensor_identifier = 1;
-      //esp_err_t result = esp_now_send(0, (uint8_t *) &senddata, sizeof(struct_send_data));
 
       Serial.print("Departure_time: ");
       Serial.println(senddata.p1_departure_time);
