@@ -264,7 +264,7 @@ void loop() {
     enkelt_stop = true;
     starting = true;
   }
-  starting = true;
+  
   if (starting == true)
   {
 
