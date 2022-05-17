@@ -5,19 +5,25 @@
   date：17-05-2022
 *******************************************************************************
 */
+
+// For visual studiocode
 #include <Arduino.h>
+
+//Mstack5 Core 2 Libaries:
 #include <M5Core2.h>
 #include <driver/i2s.h>
+
+// ESP_NOW Libraries
 #include <esp_now.h>
 #include <WiFi.h>
 
 //The mac address of the central unit (The Master)
-uint8_t broadcastAddress1[] = {0x24, 0x6F, 0x28, 0x0B, 0x7A, 0xC4}; // Anders Node MCU
+uint8_t broadcastAddress1[] = {0x24, 0x6F, 0x28, 0x0B, 0x7A, 0xC4}; // Mac address central
 
 //Initialise the needed variables and flags for ESP-NOW
-unsigned long TimerBegin, Timer_run, Time, StopTime, TotalRunningTime;
-bool enkelt_start = true;
-bool enkelt_stop = false;
+unsigned long Timer_run, Shuttle_time_incriment, Shuttle_time_run;
+bool enkelt_start = true;      // Flag for switching between start and stop
+bool enkelt_stop = false;      // Flag for switching between start and stop
 
 String success;
 
@@ -41,9 +47,6 @@ typedef struct struct_initialisetime
 } struct_initialisetime;
 
 struct_initialisetime NewTime;
-
-/// her defineres tiden som det tager at få beep lyden initieret, som starten
-unsigned long tidstagning1, tidstagning2;
 
 
 //callback function that will be executed when data is received
@@ -70,42 +73,34 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
 char timeStrbuff[64];
 
 RTC_TimeTypeDef RTCtime;
+
 // Referring to external data
-//extern const unsigned char lyd_4[1164240]; //en lyd jeg ikke kender til måske windows lyden der er slettet
-extern const unsigned char lyd_2[120264];   // beep lang
-extern const unsigned char lyd_3[120264];    // beep kort
+//extern const unsigned char lyd_4[1164240]; // Windows starting sound
+extern const unsigned char lyd_2[120264];    // Beep long
+extern const unsigned char lyd_3[120264];    // Beep short
 
-extern const unsigned char SettingAppImage[50771];
-extern const unsigned char bibiSig[8820];
-extern const unsigned char CoreMainImage[87169];
+int loopi;                                   // Varaible for updating the screen
 
-unsigned long Timer_run2, Timer_begin, Time2, Shuttle_time_incriment, Shuttle_time_run;
-
-int Sec_offset;
-int sec_vari = 1;
-int loopi;
-
+// Define the pins for the speaker
 #define CONFIG_I2S_BCK_PIN     12
 #define CONFIG_I2S_LRCK_PIN    0
 #define CONFIG_I2S_DATA_PIN    2
 #define CONFIG_I2S_DATA_IN_PIN 34
-
 #define Speak_I2S_NUMBER I2S_NUM_0
-
 #define MODE_MIC  0
 #define MODE_SPK  1
 #define DATA_SIZE 1024
 
-bool beep_after_1_time = false;
+//bool beep_after_1_time = false;
 bool starting = false;
 bool Bib_running = false;
-bool opstart = true;
+//bool opstart = true;
 
 uint8_t microphonedata0[1024 * 100];
 int data_offset = 0;
 
 bool InitI2SSpeakOrMic(int mode)
-{ // Init I2S.
+{
   esp_err_t err = ESP_OK;
 
   i2s_driver_uninstall(
@@ -146,9 +141,9 @@ bool InitI2SSpeakOrMic(int mode)
   tx_pin_config.bck_io_num =
     CONFIG_I2S_BCK_PIN;  // Link the BCK to the CONFIG_I2S_BCK_PIN pin.
   // BCKCONFIG_I2S_BCK_PIN
-  tx_pin_config.ws_io_num    = CONFIG_I2S_LRCK_PIN;     
-  tx_pin_config.data_out_num = CONFIG_I2S_DATA_PIN;     
-  tx_pin_config.data_in_num  = CONFIG_I2S_DATA_IN_PIN;  
+  tx_pin_config.ws_io_num    = CONFIG_I2S_LRCK_PIN;
+  tx_pin_config.data_out_num = CONFIG_I2S_DATA_PIN;
+  tx_pin_config.data_in_num  = CONFIG_I2S_DATA_IN_PIN;
   err +=
     i2s_set_pin(Speak_I2S_NUMBER,
                 &tx_pin_config);  // Set the I2S pin number
@@ -158,9 +153,9 @@ bool InitI2SSpeakOrMic(int mode)
   return true;
 }
 
-void DisplayInit(void) {       // Initialize the display.
+void DisplayInit(void) {             // Initialize the display.
   M5.Lcd.setTextColor(BLACK, WHITE); // Set the text color to black and BG to white
-  M5.Lcd.setTextSize(2);  // Set font size to 2.
+  M5.Lcd.setTextSize(2);             // Set font size to 2.
   M5.Lcd.clear(WHITE);
 }
 
@@ -192,7 +187,8 @@ void flushTime()
 
 void setupTime()
 {
-  RTCtime.Hours = 0;  // Set the time.
+  // Set the time for displaying on the screen
+  RTCtime.Hours = 0;
   RTCtime.Minutes = 0;
   RTCtime.Seconds = 0;
   if (!M5.Rtc.SetTime(&RTCtime)) Serial.println("wrong time set!");
@@ -202,9 +198,9 @@ void setup()
 {
   Serial.begin(115200);
   delay(400);
-  M5.begin();  // Init M5Core2.
-  DisplayInit(); // Init M5display.
-  SpeakInit(); // Init M5speaker.
+  M5.begin();              // Init M5Core2.
+  DisplayInit();           // Init M5display.
+  SpeakInit();             // Init M5speaker.
 
   //Set device as a Wi-Fi Station
   WiFi.mode(WIFI_STA);
@@ -258,89 +254,84 @@ void loop() {
   M5.update();
   if (NewTime.starter == true && enkelt_start == true)
   {
-    tidstagning1 = millis();
-    TimerBegin = millis(); // New time baseline
     enkelt_start = false;
     enkelt_stop = true;
     starting = true;
   }
-  
+
   if (starting == true)
   {
 
     SpeakInit();
-    M5.Lcd.setTextSize(8);
+    M5.Lcd.setTextSize(8);                      // Determin the screen writing size
+    // Clear the screen
     M5.Lcd.clear(WHITE);
     M5.Lcd.drawString("3", 160, 120, 1);
-    //int timerbeepshort = millis();
-    Beep_kort();
-    //int timerbeepshort1 = millis();
-    //int totalshortbeeptime = timerbeepshort1 - timerbeepshort;
-    Serial.println(totalshortbeeptime);
+
+    Beep_kort();                                // Short beep sound
     delay(400);
+    // Writing on the screen
     M5.Lcd.clear(WHITE);
     M5.Lcd.drawString("2", 160, 120, 1);
-    Beep_kort();
+    Beep_kort();                                // Short beep sound
     delay(400);
+    // Writing on the screen
     M5.Lcd.clear(WHITE);
     M5.Lcd.drawString("1", 160, 120, 1);
-    Beep_kort();
+    Beep_kort();                                // Short beep sound
     delay(300);
+    // Writing on the screen
     M5.Lcd.clear(WHITE);
     M5.Lcd.setCursor(130, 100);
     M5.Lcd.drawString("GO", 160, 120, 1);
-    Beep_lang();
-    Timer_begin = millis();
-    Shuttle_time_incriment = millis();
-    setupTime();
-    Bib_running = true;
-    starting = false;
-    tidstagning2 = millis();
+    Beep_lang();                                // Long beep sound
+    Shuttle_time_incriment = millis();          // Restart the time baseline
+    setupTime();                                // Set time for dispalying on the screen
+    Bib_running = true;                         // Controls when to enter the while loop and start the test.
+
+    // Writing on the screen
     M5.Lcd.clear(WHITE);
     M5.Lcd.setTextSize(4);
     M5.Lcd.setCursor(10, 10);
     M5.Lcd.printf("Levels:  %d", l);
     M5.Lcd.setCursor(10, 40);
     M5.Lcd.printf("Shuttle: %d", s);
-    Serial.println(tidstagning2 - tidstagning1);
+    starting = false;                          // Controls that the statements is only executed once
   }
 
 
-  while (Bib_running == true) //Serial.println("Start bib_running");
+  while (Bib_running == true)
   {
-    Timer_run2 = millis();
-    Time2 = Timer_run2 - Timer_begin;
-    Shuttle_time_run = Timer_run2 - Shuttle_time_incriment;
-    loopi++;
-
-    if (loopi == 1000)
+    Timer_run = millis();                      // Continious take the time
+    Shuttle_time_run = Timer_run - Shuttle_time_incriment;   // Calculate the time
+    
+    loopi++;                                  // Counter for when to update time
+    if (loopi == 1000)                        // Update time every second
     {
-      flushTime();
-      loopi = 0;
+      flushTime();                            // Function for updating time on the screen
+      loopi = 0;                              // Reset counter
     }
 
     M5.update();
     if (NewTime.starter == false && enkelt_stop == true)
     {
       Serial.println("Test stopped");
-      StopTime = millis();
       M5.Lcd.clear(WHITE);
       M5.Lcd.drawString("Test stopped", 20, 110, 1);
-      TotalRunningTime = StopTime - TimerBegin;
-      Serial.print("Test time: ");
-      Serial.println(TotalRunningTime);
       enkelt_start = true;
       enkelt_stop = false;
-      delay(1000);
-      while (1) {} //finished so just hold here
+
+      while (1) {}                           //finished so just hold here
     }
 
     if (Shuttle_time_run > shuttle_times[l - 1] && s == shuttles[l - 1])
     {
-      Shuttle_time_incriment = millis();
-      l++;
-      s = 1;
-      Beep_lang();
+      Shuttle_time_incriment = millis();     // Resets time for Shuttle_time_run
+      l++;                                   // Level variable increment
+      s = 1;                                 // Resets shuttle variable
+      Beep_lang();                           // Long beep sound
+
+      // Writing on the screen
       M5.Lcd.clear(WHITE);
       M5.Lcd.setTextSize(4);
       M5.Lcd.setCursor(10, 10);
@@ -350,9 +341,11 @@ void loop() {
     }
     else if (Shuttle_time_run > shuttle_times[l - 1])
     {
-      Shuttle_time_incriment = millis();
-      s++;
-      Beep_kort();
+      Shuttle_time_incriment = millis();    // Resets time for Shuttle_time_run
+      s++;                                  // Shuttle variable increment
+      Beep_kort();                           // Short beep sound
+
+      // Writing on the screen
       M5.Lcd.clear(WHITE);
       M5.Lcd.setTextSize(4);
       M5.Lcd.setCursor(10, 10);
@@ -361,5 +354,6 @@ void loop() {
       M5.Lcd.printf("Shuttle: %d", s);
 
     }
+    delay(1);
   }
 }
