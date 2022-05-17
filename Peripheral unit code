@@ -10,8 +10,6 @@
 //The mac address of the central unit (The Master)
 uint8_t broadcastAddress0[] = {0x08, 0x3A, 0xF2, 0x45, 0x42, 0xC4}; // Nikolaj TTGO
 
-
-
 //Initialise the needed variables and flags
 unsigned long TimerBegin, Time, Running_time, SendTime;
 bool enkelt_start = true;
@@ -23,7 +21,6 @@ String success;
 
 //Needed for two way communication
 esp_now_peer_info_t peerInfo;
-
 
 //Initialise the message to be recived from the periferials (MUST MATCH THEIR NAME IN THEIR CODE)
 typedef struct struct_send_data {
@@ -89,9 +86,6 @@ int m;
 unsigned long delaytime = 2000;
 
 ///////// FSR KODE //////////
-
-
-
 //Hele arrayet i millis uden tolerance
 int Beeb_array [] = {0, 8470, 16940, 25410, 33880, 42350, 50820, 59290, 67760, //Level 1
                      75760, 83760, 91760, 99760, 107760, 115760, 123760, 131760, //Level 2
