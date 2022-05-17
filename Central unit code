@@ -1,51 +1,43 @@
+// For visual studiocode
 #include <Arduino.h>
+
+// ESP_NOW Libraries
 #include <esp_now.h>
 #include <WiFi.h>
 
-//The mac address of the central unit (The Master)
-uint8_t broadcastAddress0[] = {0x08, 0x3A, 0xF2, 0x45, 0x34, 0xDC}; 
-uint8_t broadcastAddress1[] = {0x08, 0x3A, 0xF2, 0x45, 0x35, 0xA4}; 
-uint8_t broadcastAddress2[] = {0x08, 0x3A, 0xF2, 0x43, 0x57, 0x98}; 
-
-
-//SD KORT:
+//SD Card Libaries:
 #include "FS.h"
 #include "SD.h"
 #include "SPI.h"
 
-SPIClass SDSPI(HSPI);
-
+//SD Card pin define:
 #define CS       33
-#define SCLK     25 //Ændret til at passe med vores board (ændret fra 25)
+#define SCLK     25 // Changes to pin 25 to fit our board
 #define MISO     27
-#define MOSI     26 //Ændret til at passe med vores board (ændret fra 26)
+#define MOSI     26 // Changes to pin 26 to fit our board
+
+
+//The mac address for Peripherals and Speaker
+uint8_t broadcastAddress0[] = {0x08, 0x3A, 0xF2, 0x45, 0x34, 0xDC}; // MAC adresse of Peripherial 1
+uint8_t broadcastAddress1[] = {0x08, 0x3A, 0xF2, 0x45, 0x35, 0xA4}; // MAC adresse of Peripherial 2
+uint8_t broadcastAddress2[] = {0x08, 0x3A, 0xF2, 0x43, 0x57, 0x98}; // MAC adresse of Speaker
+
 
 // SD KORT:
 File file;
+SPIClass SDSPI(HSPI);
 
 
 //Declare flags
-bool start1 = true;
-bool flag = true;
-bool SendData = false;
-bool Stop = true;
-
+bool SendData = false;               // Used to make sure that the GUI test starts i the right order.
+bool Stop_flag = false;               // Used for stopping the test
 bool Start_flag = false;             // Used for starting the test
 bool Newdata_flag = false;           // Used for identifying when new data is send from the peripheral unit
-bool Departure_time_flag = true;     // Used for checking departure time
-//bool kode_skifte_flag = true;
-bool sensor_change_flag = true;      // Used for checking that sensor reading change.
-bool first_time_flag = true;         // Used to control which sensor that startes.
-bool Sensor_1_flag = false;          // Used to determin that sensor 1, is the first one activated.
-bool Sensor_2_flag = false;          // Used to determin that sensor 2, is the first one activated.
-bool Out_flag = true;                // Used to keep in while loop when participant is out of the test
-bool Give_warning = false;
+bool Give_warning = false;           // Used for determin if participant get a warning
 
 //Declare counting variables
-int i;    // Used for sensor shifting counting
-int k = 0;
-int m = 0;
-int p1_warning = 0; // Counting warnings
+int i;                               // Used for sensor shifting counting
+int p1_warning;                      // Counting warnings for participant 1
 
 //Declare timer variables
 unsigned long Timer_run, Timer_begin, Time;
@@ -54,7 +46,7 @@ unsigned long Timer_run, Timer_begin, Time;
 String success;
 
 //Declare the message to be recived from the periferials (Structure must match)
-typedef struct struct_send_times_and_flag {
+typedef struct struct_send_identifier_and_times {
   int sensor_identifier;
   float p1_arrival_time;
   float p1_departure_time;
@@ -64,21 +56,21 @@ typedef struct struct_send_times_and_flag {
   float p3_departure_time;
   float p4_arrival_time;
   float p4_departure_time;
-} struct_send_times_and_flag;
+} struct_send_identifier_and_times;
 
 // Create a struct_message to hold incoming sensor readings
-struct_send_times_and_flag incomingReadings;
+struct_send_identifier_and_times incomingReadings;
 
 //Needed for two way communication
 esp_now_peer_info_t peerInfo;
 
 //Initliase the messege to be send to all perifireals (MUST MATCH THEIR NAME IN THEIR CODE)
-typedef struct struct_initialisetime {
+typedef struct struct_start_stop_test {
   bool start;
-} struct_initialisetime;
+} struct_start_stop_test;
 
 // Create a struct struct_initialisetime called timesent
-struct_initialisetime timesent;
+struct_start_stop_test outgoingStarting;
 
 // callback function for when data is sent
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
@@ -108,9 +100,8 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
   Newdata_flag = true;
 }
 
-////////// MONSTER ARRAYS //////////////////
 
-//Hele arrayet i millis uden tolerance
+// MSFT reference values array in milliseconds
 int Beeb_array [] = {0, 8470, 16940, 25410, 33880, 42350, 50820, 59290, 67760, //Level 1
                      75760, 83760, 91760, 99760, 107760, 115760, 123760, 131760, //Level 2
                      139340, 146920, 154500, 162080, 169660, 177240, 184820, 192400, //Level 3
@@ -136,7 +127,7 @@ int Beeb_array [] = {0, 8470, 16940, 25410, 33880, 42350, 50820, 59290, 67760, /
 
 //____________________________________________________________________________
 
-//Hele arrayet i millis med tolerancer
+// MSFT reference values array with tollerenaces in milliseconds
 int Beeb_array_with_tollerance [] = {0, 9320, 17790, 26260, 34730, 43200, 51670, 60140, 68610, //Level 1
                                      76560, 84560, 92560, 100560, 108560, 116560, 124560, 132560, //Level 2
                                      140100, 147680, 155260, 162840, 170420, 178000, 185580, 193160, //Level 3
@@ -160,15 +151,13 @@ int Beeb_array_with_tollerance [] = {0, 9320, 17790, 26260, 34730, 43200, 51670,
                                      1268010, 1271900, 1275790, 1279680, 1283570, 1287460, 1291350, 1295240, 1299130, 1303020, 1306910, 1310800, 1314690, 1318580, 1322470, 1326360 //Level 21
                                     };
 
-////////////// MONSTER ARRAYS ///////////////
 
-/////////////  Vo2Max Array ///////////////
+//  Vo2Max Array
 float vo2maxValues[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26.8, 27.2, 27.6, 27.95, 28.3, 28.7, 29.1, 29.5, 29.9, 30.2, 30.6, 31.0, 31.4, 31.8, 32.2, 32.6, 32.9, 33.3, 33.6, 33.95, 34.3, 34.65, 35.0, 35.35, 35.7, 36.05, 36.4, 36.75, 37.1, 37.45, 37.8, 38.1, 38.5, 38.9, 39.2, 39.6, 39.9, 40.2, 40.5, 40.8, 41.1, 41.45, 41.8, 42.1, 42.4, 42.7, 43.0, 43.3, 43.6, 43.9, 44.25, 44.5, 44.8, 45.2, 45.5, 45.8, 46.1, 46.5, 46.8, 47.1, 47.4, 47.7, 48.0, 48.35, 48.7, 49.0, 49.3, 49.6, 49.9, 50.2, 50.5, 50.8, 51.1, 51.4, 51.65, 51.9, 52.3, 52.5, 52.8, 53.1, 53.4, 53.7, 54.0, 54.3, 54.55, 54.8, 55.1, 55.4, 55.7, 56.0, 56.25, 56.5, 56.8, 57.1, 57.3, 57.6, 57.9, 58.2, 58.45, 58.7, 59.0, 59.3, 59.5, 59.8, 60.05, 60.3, 60.6, 60.9, 61.1, 61.4, 61.7, 61.95, 62.2, 62.45, 62.7, 62.95, 63.2, 63.4, 63.7, 64.0, 64.3, 64.6, 64.85, 65.1, 65.35, 65.6, 65.9, 66.2, 66.45, 66.7, 67.0, 67.2, 67.5, 67.75, 68.0, 68.25, 68.5, 68.75, 69.0, 69.25, 69.5, 69.7, 69.9, 70.2, 70.5, 70.75, 70.9, 71.2, 71.4, 71.75, 71.9, 72.2, 72.4, 72.75, 72.9, 73.2, 73.4, 73.7, 73.9, 74.2, 74.4, 74.6, 74.8, 75.0, 75.3, 75.55, 75.8, 76.0, 76.2, 76.4, 76.7, 77.0, 77.2, 77.45, 77.65, 77.9, 78.1, 78.3, 78.55, 78.8, 79.0, 79.2, 79.5, 79.7, 80.0, 80.2, 80.4, 80.6, 80.8, 81.1, 81.3, 81.5, 81.8, 82.0, 82.2, 82.4, 82.6, 82.8, 83.0, 83.25, 83.5, 83.75, 83.9, 84.1, 84.3, 84.5, 84.8, 85.0, 85.2, 85.4, 85.6, 85.85, 86.1, 86.3, 86.5, 86.75, 86.9, 87.1, 87.4, 87.6, 87.8, 88.0, 88.2};
 
-/////////////  Vo2Max Array ///////////////
 
-  void serialEvent()
-  {
+void serialEvent()
+{
   while (Serial.available())
   {
     int InputGUI = Serial.read();       // get the new byte
@@ -179,46 +168,45 @@ float vo2maxValues[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         break;
       case 'e':
         file.close();
-        SendData = false;
-        Stop = true;
+        Stop_flag = true;
         break;
       case 'u':
-//        writeFile(SD, "/MSFT Results.txt", TableResults);
-//        appendFile(SD, "/MSFT.txt", "idag?\r\n");
+        //        writeFile(SD, "/MSFT Results.txt", TableResults);
+        //        appendFile(SD, "/MSFT.txt", "idag?\r\n");
         break;
       default:
         break;
     }
   }
-  }
+}
 
 void StartStop()
 {
   //Functions to start and stop the test from the serial monitor
 
-    if (SendData == true) {
-      timesent.start = true;
-      esp_err_t result = esp_now_send(0, (uint8_t *) &timesent, sizeof(struct_initialisetime));
-      delay(6681); // M5-Stack delay for beep,beep,beep BEEP
-      Timer_begin = millis(); // Sætter baseline timer
-      Serial.println("START");
-      Start_flag = true; // Aktivates if-statement
-      p1_warning = 0;
-      i = 1;
-      SendData = false;
-    }
-    else if (Stop == true) {
-      timesent.start = false;
-      esp_err_t result = esp_now_send(0, (uint8_t *) &timesent, sizeof(struct_initialisetime));
-      Serial.println("STOP");
-      Start_flag = false; // Deaktivates if-statement
-      Stop = false;
-    }
-  
+  if (SendData == true) {
+    outgoingStarting.start = true;
+    esp_err_t result = esp_now_send(0, (uint8_t *) &outgoingStarting, sizeof(struct_start_stop_test));
+    delay(6681);                   // Speaker countdown delay for 3,2,1 BEEP
+    Timer_begin = millis();        // Set new baseline for the time
+    Serial.println("START");       // For debugging
+    Start_flag = true;             // Activates starting if-statement
+    p1_warning = 0;                // Resets warnings for participant 1
+    i = 1;                         // Resets counting variables for sensor shifting
+    SendData = false;              // Controls that the statements is only executed once
+  }
+
+  else if (Stop_flag == true) {
+    outgoingStarting.start = false;
+    esp_err_t result = esp_now_send(0, (uint8_t *) &outgoingStarting, sizeof(struct_start_stop_test));
+    Serial.println("STOP");        // For debugging
+    Start_flag = false;            // Flag that stops the test.
+    Stop_flag = false;             // Controls that the statements is only executed once
+  }
+
 }
 
 void setup() {
-
 
   // Initialising Seriel communication
   Serial.begin(115200);
@@ -265,20 +253,20 @@ void setup() {
 
 
   // Initialising SD-card function
-  
-    SDSPI.begin(SCLK, MISO, MOSI, CS);
 
-    if (!SD.begin(CS, SDSPI)) {
-      Serial.println("Card Mount Failed");
-      return;
-    }
-    uint8_t cardType = SD.cardType();
+  SDSPI.begin(SCLK, MISO, MOSI, CS);
 
-    if (cardType == CARD_NONE) {
-      Serial.println("No SD card attached");
-      return;
-    }
-  
+  if (!SD.begin(CS, SDSPI)) {
+    Serial.println("Card Mount Failed");
+    return;
+  }
+  uint8_t cardType = SD.cardType();
+
+  if (cardType == CARD_NONE) {
+    Serial.println("No SD card attached");
+    return;
+  }
+
 }
 
 
@@ -293,8 +281,7 @@ void loop() {
   Time = Timer_run - Timer_begin;
 
   // Vo2Max incemental index
-  if (Time >= Beeb_array_with_tollerance[i] && Start_flag) {
-
+  if (Time >= Beeb_array_with_tollerance[i] & Start_flag) {
     // Counting i variabel up, to check for sensor switching.
     i++;
     Serial.println("-----------------------");
@@ -306,7 +293,7 @@ void loop() {
   }
 
   // Checking if data are arrived
-  if (Newdata_flag) {
+  if (Newdata_flag & Start_flag) {
     Serial.println("-----------------------");
 
     // Participant 1
@@ -326,7 +313,7 @@ void loop() {
       Serial.println("-----------------------");
     }
 
-    if ( Beeb_array[i - 3] < incomingReadings.p1_departure_time) { // 3 < i &
+    if ( Beeb_array[i - 3] < incomingReadings.p1_departure_time) { 
       Serial.println("Departure tid er OK");
       Serial.print("Departure TID: ");
       Serial.println(incomingReadings.p1_departure_time);
@@ -336,7 +323,7 @@ void loop() {
       Serial.println("-----------------------");
 
     }
-    else if (2 < i) {  // if (1 < i)
+    else if (2 < i) { 
       Give_warning = true;
       Serial.println("P1 departure warning");
       Serial.print("DEPART Time: ");
