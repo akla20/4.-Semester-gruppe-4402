@@ -4,19 +4,19 @@
   Author: Gruppe 4402
 *********/
 
+// ESP_NOW Libraries
 #include <esp_now.h>
 #include <WiFi.h>
 
 //The mac address of the central unit (The Master)
-uint8_t broadcastAddress0[] = {0x08, 0x3A, 0xF2, 0x45, 0x42, 0xC4}; // Nikolaj TTGO
+uint8_t broadcastAddress0[] = {0x08, 0x3A, 0xF2, 0x45, 0x42, 0xC4}; // Mac address Central
 
 //Initialise the needed variables and flags
 unsigned long TimerBegin, Time, Running_time, SendTime;
-bool enkelt_start = true;
-bool enkelt_stop = false;
-bool start_flag = false;
-bool meassure_arrival_flag = true;
-bool meassure_DEPARTURE_flag = true;
+bool enkelt_start = true;       // Flag for switching between start and stop
+bool enkelt_stop = false;       // Flag for switching between start and stop
+bool start_flag = false;        // Flag used to start the test
+
 String success;
 
 //Needed for two way communication
@@ -35,10 +35,8 @@ typedef struct struct_send_data {
   float p4_departure_time;
 } struct_send_data;
 
-
 // Create a struct_message to hold incoming sensor readings
 struct_send_data senddata;
-
 
 //Initliase the messege to be send to all perifireals (MUST MATCH THEIR NAME IN THEIR CODE)
 typedef struct struct_initialisetime {
@@ -67,26 +65,29 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
 
 ///////// FSR KODE //////////
 
-#define FORCE_SENSOR_P1 A0
-#define FORCE_SENSOR_P2 A3
-#define FORCE_SENSOR_P3 A6
-#define FORCE_SENSOR_P4 A4
+// Sensor pins for participant
+#define FORCE_SENSOR_P1 A0      // Participant 1
+#define FORCE_SENSOR_P2 A3      // Participant 2
+#define FORCE_SENSOR_P3 A6      // Participant 3
+#define FORCE_SENSOR_P4 A4      // Participant 4
 
-unsigned long P1_newSample, P1_oldSample;
-unsigned long P2_newSample, P2_oldSample;
-unsigned long P3_newSample, P3_oldSample;
-unsigned long P4_newSample, P4_oldSample;
+// Variables used for determin the arrival and departure time
+unsigned long P1_newSample, P1_oldSample;     // Participant 1
+unsigned long P2_newSample, P2_oldSample;     // Participant 2
+unsigned long P3_newSample, P3_oldSample;     // Participant 3
+unsigned long P4_newSample, P4_oldSample;     // Participant 4
 
 unsigned long arrival_time, departure_time;
 
-int Threshold = 100;
+int Threshold = 100;      // Threshold for when arival and departure is determined
 
-int i;
-int m;
+int i;                    // Used for counting sensor switching. Sensor only sends data every other time. 
+int m;                    // Used for counting indexes for departure time.
+
+// Delay from shuttle ends to the data is send.
 unsigned long delaytime = 2000;
 
-///////// FSR KODE //////////
-//Hele arrayet i millis uden tolerance
+// MSFT reference values array in milliseconds
 int Beeb_array [] = {0, 8470, 16940, 25410, 33880, 42350, 50820, 59290, 67760, //Level 1
                      75760, 83760, 91760, 99760, 107760, 115760, 123760, 131760, //Level 2
                      139340, 146920, 154500, 162080, 169660, 177240, 184820, 192400, //Level 3
@@ -111,7 +112,7 @@ int Beeb_array [] = {0, 8470, 16940, 25410, 33880, 42350, 50820, 59290, 67760, /
                     };
 
 
-//Hele arrayet i millis med tolerancer
+// MSFT reference values array with tollerenaces in milliseconds
 int Beeb_array_with_tollerance [] = {0, 9320, 17790, 26260, 34730, 43200, 51670, 60140, 68610, //Level 1
                                      76560, 84560, 92560, 100560, 108560, 116560, 124560, 132560, //Level 2
                                      140100, 147680, 155260, 162840, 170420, 178000, 185580, 193160, //Level 3
@@ -134,8 +135,6 @@ int Beeb_array_with_tollerance [] = {0, 9320, 17790, 26260, 34730, 43200, 51670,
                                      1204130, 1208130, 1212130, 1216130, 1220130, 1224130, 1228130, 1232130, 1236130, 1240130, 1244130, 1248130, 1252130, 1256130, 1260130, 1264130, //Level 20
                                      1268010, 1271900, 1275790, 1279680, 1283570, 1287460, 1291350, 1295240, 1299130, 1303020, 1306910, 1310800, 1314690, 1318580, 1322470, 1326360 //Level 21
                                     };
-
-
 
 
 
@@ -172,29 +171,14 @@ void setup() {
 void loop() {
 
 
-  // FOR TESTING
-
-  if (Serial.available()) { // if there is data comming
-    String command = Serial.readStringUntil('\n'); // read string until newline character
-
-    if (command == "START") {
-      NewTime.starter = true;
-    }
-    else if (command == "STOP") {
-      NewTime.starter = false;
-    }
-  }
-
-  // FOR TESTING
-
   //The different functions to be called depending on the input from the central unit
   if (NewTime.starter == true && enkelt_start == true) {
     delay(6681); // M5-Stack delay for beep,beep,beep BEEP
-    TimerBegin = millis(); // New time baseline
+    TimerBegin = millis();            // Restart the time baseline
     Serial.println("Test started");
-    enkelt_start = false;
-    enkelt_stop = true;
-    start_flag = true;
+    enkelt_stop = true;               // Enables the stop if statement
+    start_flag = true;                // Flag that starts the test.
+    enkelt_start = false;             // Controls that the statements is only executed once 
 
     if (P1_newSample > Threshold) {
       i = 1;
@@ -214,9 +198,9 @@ void loop() {
 
   if (NewTime.starter == false && enkelt_stop == true) {
     Serial.println("Test stopped");
-    enkelt_start = true;
-    enkelt_stop = false;
-    start_flag = false;
+    enkelt_start = true;             // Enables the start if statement
+    start_flag = false;              // Flag that stops the test.
+    enkelt_stop = false;             // Controls that the statements is only executed once
   }
 
   // Sends data after each shuttle
@@ -228,7 +212,6 @@ void loop() {
     m++;
 
   }
-
 
   if (Running_time >= Beeb_array_with_tollerance [i + 1] + delaytime & start_flag == true) {
     Serial.print("Running_time: ");
@@ -246,18 +229,15 @@ void loop() {
 
   }
 
-  ///////// FSR KODE //////////
 
   // PARTICIPANT 1
 
   P1_oldSample = P1_newSample;
   P1_newSample = analogRead(FORCE_SENSOR_P1);
 
-
-  // PARTICIPANT 1
   if (Beeb_array_with_tollerance [i] + delaytime < Running_time &  Running_time  < Beeb_array_with_tollerance [i + 1]) {
 
-    if (P1_oldSample <= Threshold && P1_newSample > Threshold) //
+    if (P1_oldSample <= Threshold && P1_newSample > Threshold) 
     {
       arrival_time = millis();
       senddata.p1_arrival_time =  arrival_time - TimerBegin;
@@ -267,9 +247,9 @@ void loop() {
     }
   }
 
-  if (Beeb_array [m] < Running_time &  Running_time  < Beeb_array [m + 1]) { //&  Running_time  < Beeb_array [m+1]
+  if (Beeb_array [m] < Running_time &  Running_time  < Beeb_array [m + 1]) { 
 
-    if (P1_oldSample >= Threshold && P1_newSample < Threshold & meassure_DEPARTURE_flag)
+    if (P1_oldSample >= Threshold && P1_newSample < Threshold)
     {
       departure_time = millis();
       senddata.p1_departure_time =  departure_time - TimerBegin;
@@ -280,7 +260,8 @@ void loop() {
     }
   }
 
-  ///////// FSR KODE //////////
+  // PARTICIPANT 2
+  //...
 
   delay(10);
 
