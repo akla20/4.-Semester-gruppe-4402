@@ -173,7 +173,7 @@ void loop() {
 
   //The different functions to be called depending on the input from the central unit
   if (NewTime.starter == true && enkelt_start == true) {
-    delay(6681); // M5-Stack delay for beep,beep,beep BEEP
+    delay(6681);                      // M5-Stack delay for beep,beep,beep BEEP
     TimerBegin = millis();            // Restart the time baseline
     Serial.println("Test started");
     enkelt_stop = true;               // Enables the stop if statement
@@ -207,10 +207,11 @@ void loop() {
   Time = millis();
   Running_time = Time - TimerBegin;
 
+  // Counter for departure time
   if (Running_time >= Beeb_array [m + 1] & start_flag) {
+    // m + 2 for checking every other time/shuttle.
     m++;
     m++;
-
   }
 
   if (Running_time >= Beeb_array_with_tollerance [i + 1] + delaytime & start_flag == true) {
@@ -263,6 +264,6 @@ void loop() {
   // PARTICIPANT 2
   //...
 
-  delay(10);
+  delay(10); // Keeps control of the sampling - fs = 100 hz.
 
 }
