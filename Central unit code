@@ -29,15 +29,15 @@ SPIClass SDSPI(HSPI);
 
 
 //Declare flags
-bool SendData = false;               // Used to make sure that the GUI test starts i the right order.
+bool SendData = false;                // Used to make sure that the GUI test starts i the right order.
 bool Stop_flag = false;               // Used for stopping the test
-bool Start_flag = false;             // Used for starting the test
-bool Newdata_flag = false;           // Used for identifying when new data is send from the peripheral unit
-bool Give_warning = false;           // Used for determin if participant get a warning
+bool Start_flag = false;              // Used for starting the test
+bool Newdata_flag = false;            // Used for identifying when new data is send from the peripheral unit
+bool Give_warning = false;            // Used for determin if participant get a warning
 
 //Declare counting variables
-int i;                               // Used for sensor shifting counting
-int p1_warning;                      // Counting warnings for participant 1
+int i;                                // Used for sensor shifting counting
+int p1_warning;                       // Counting warnings for participant 1
 
 //Declare timer variables
 unsigned long Timer_run, Timer_begin, Time;
@@ -171,8 +171,7 @@ void serialEvent()
         Stop_flag = true;
         break;
       case 'u':
-        //        writeFile(SD, "/MSFT Results.txt", TableResults);
-        //        appendFile(SD, "/MSFT.txt", "idag?\r\n");
+        writeFile(SD, "/MSFT Results.txt", TableResults);
         break;
       default:
         break;
@@ -187,7 +186,7 @@ void StartStop()
   if (SendData == true) {
     outgoingStarting.start = true;
     esp_err_t result = esp_now_send(0, (uint8_t *) &outgoingStarting, sizeof(struct_start_stop_test));
-    delay(6681);                   // Speaker countdown delay for 3,2,1 BEEP
+    delay(6681);                   // Speaker countdown delay for 3,2,1 BEEP for M5Stack
     Timer_begin = millis();        // Set new baseline for the time
     Serial.println("START");       // For debugging
     Start_flag = true;             // Activates starting if-statement
@@ -280,7 +279,7 @@ void loop() {
   Timer_run = millis();
   Time = Timer_run - Timer_begin;
 
-  // Vo2Max incemental index
+  // Array variable incemental index
   if (Time >= Beeb_array_with_tollerance[i] & Start_flag) {
     // Counting i variabel up, to check for sensor switching.
     i++;
